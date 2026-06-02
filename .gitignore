@@ -1,0 +1,9 @@
+.env
+node_modules/
+*.png
+.claude/
+chatgpt_test.py
+check-app.js
+phone-test.js
+test-languages.js
+VisionGuideAI-MERN/
