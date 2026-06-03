@@ -8,7 +8,7 @@ const BASE = import.meta.env.VITE_API_URL ?? "";
 
 const API = axios.create({
   baseURL: `${BASE}/api`,
-  timeout: 15000,
+  timeout: 40000, // 40 s — matches Render free-tier cold-start window
 });
 
 /* Attach the JWT session token on every request (read fresh from localStorage) */

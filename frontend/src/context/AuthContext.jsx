@@ -4,7 +4,15 @@ import axios from "axios";
 const AuthContext = createContext(null);
 
 const BASE = import.meta.env.VITE_API_URL ?? "";
-const authAPI = axios.create({ baseURL: `${BASE}/api/auth`, timeout: 12000 });
+// 40 s — Render free tier cold-starts take ~30 s; 12 s was too short
+const authAPI = axios.create({ baseURL: `${BASE}/api/auth`, timeout: 40000 });
+
+const errMsg = (err, fallback) => {
+  if (err.response?.data?.message) return err.response.data.message;
+  if (err.code === "ECONNABORTED" || err.message?.includes("timeout"))
+    return "Server is waking up — please wait a moment and try again.";
+  return fallback;
+};
 
 export function AuthProvider({ children }) {
   const [user,    setUser]    = useState(null);
@@ -40,8 +48,7 @@ export function AuthProvider({ children }) {
     } catch (err) {
       if (err.response?.status === 409)
         return { success: false, error: "Email already registered. Please sign in." };
-      const msg = err.response?.data?.message || "Registration failed. Check your connection and try again.";
-      return { success: false, error: msg };
+      return { success: false, error: errMsg(err, "Registration failed. Check your connection and try again.") };
     }
   };
 
@@ -52,8 +59,7 @@ export function AuthProvider({ children }) {
       _saveSession({ id: data.id, name: data.name, email: data.email, token: data.token });
       return { success: true };
     } catch (err) {
-      const msg = err.response?.data?.message || "Sign in failed. Check your connection and try again.";
-      return { success: false, error: msg };
+      return { success: false, error: errMsg(err, "Sign in failed. Check your connection and try again.") };
     }
   };
 
