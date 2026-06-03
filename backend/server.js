@@ -2,6 +2,7 @@ const express    = require("express");
 const cors       = require("cors");
 const dotenv     = require("dotenv");
 const rateLimit  = require("express-rate-limit");
+const helmet     = require("helmet");
 const auth       = require("./middleware/auth");
 const multer     = require("multer");
 const axios      = require("axios");
@@ -9,7 +10,18 @@ const FormData   = require("form-data");
 
 dotenv.config();
 
+/* ── Fail fast if required env vars are missing ── */
+["SUPABASE_URL", "SUPABASE_KEY", "API_KEY", "GROQ_API_KEY", "JWT_SECRET"].forEach(k => {
+  if (!process.env[k]) {
+    console.error(`[startup] Missing required environment variable: ${k}`);
+    process.exit(1);
+  }
+});
+
 const app = express();
+
+/* ── Security headers ── */
+app.use(helmet({ contentSecurityPolicy: false })); // CSP off — app uses inline styles
 
 /* ── CORS: allow localhost (http+https) + any LAN IP ── */
 app.use(cors({
@@ -61,6 +73,15 @@ app.get("/health", (req, res) => {
   res.json({ status: "ok", message: "VisionGuide AI backend is healthy" });
 });
 
+/* ── Stricter rate limit for auth endpoints: 10 attempts / 15 min per IP ── */
+app.use("/api/auth", rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: "Too many login attempts. Please wait 15 minutes." },
+}));
+
 /* ── API Routes ── */
 app.use("/api/auth",       require("./routes/authRoutes"));
 app.use("/api/emergency",  require("./routes/emergencyRoutes"));
@@ -77,6 +98,54 @@ app.use("/api/sos", rateLimit({
   message: { message: "Too many SOS alerts. Please wait before sending another." },
 }));
 app.use("/api/sos", require("./routes/sosRoutes"));
+
+/* ── Image analysis via Groq LLaMA Vision API ── */
+const imageUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
+
+app.post("/api/analyze-image", imageUpload.single("image"), async (req, res) => {
+  try {
+    const GROQ_KEY = process.env.GROQ_API_KEY;
+    if (!GROQ_KEY) return res.status(500).json({ error: "GROQ_API_KEY not configured" });
+    if (!req.file)  return res.status(400).json({ error: "No image provided" });
+
+    const imageBase64 = req.file.buffer.toString("base64");
+    const mimeType    = req.file.mimetype || "image/jpeg";
+
+    const groqRes = await axios.post(
+      "https://api.groq.com/openai/v1/chat/completions",
+      {
+        model: "meta-llama/llama-4-scout-17b-16e-instruct",
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "image_url",
+                image_url: { url: `data:${mimeType};base64,${imageBase64}` },
+              },
+              {
+                type: "text",
+                text: "You are an accessibility assistant helping visually impaired users understand images. Describe this image clearly and concisely: list every visible object, their approximate positions (left, right, center, foreground, background), colors, and any visible text. Be specific but keep it under 3 sentences.",
+              },
+            ],
+          },
+        ],
+        max_tokens: 300,
+        temperature: 0.1,
+      },
+      {
+        headers: { Authorization: `Bearer ${GROQ_KEY}`, "Content-Type": "application/json" },
+        timeout: 30000,
+      }
+    );
+
+    const description = (groqRes.data.choices?.[0]?.message?.content || "").trim();
+    res.json({ description });
+  } catch (err) {
+    console.error("[Vision] Error:", err.response?.data || err.message);
+    res.status(500).json({ error: "Image analysis failed" });
+  }
+});
 
 /* ── Transcription via Groq Whisper API ── */
 const audioUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
@@ -103,7 +172,6 @@ app.post("/api/transcribe", audioUpload.single("audio"), async (req, res) => {
     );
 
     const text = (groqRes.data.text || "").trim();
-    console.log("[Transcribe] Groq result:", JSON.stringify(text));
     res.json({ text });
   } catch (err) {
     console.error("[Transcribe] Error:", err.response?.data || err.message);

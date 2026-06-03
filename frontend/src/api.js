@@ -1,12 +1,20 @@
 import axios from "axios";
 
-// All /api calls go through the Vite proxy (same origin) → no mixed-content issues
 const API = axios.create({
   baseURL: "/api",
   timeout: 15000,
-  headers: {
-    "x-api-key": "vg_2024_k9mPqR7nXs3wLjT",
-  },
+});
+
+/* Attach the JWT session token on every request (read fresh from localStorage) */
+API.interceptors.request.use((config) => {
+  try {
+    const raw  = localStorage.getItem("visionguide_user");
+    const user = raw ? JSON.parse(raw) : null;
+    if (user?.token) {
+      config.headers["x-session-token"] = user.token;
+    }
+  } catch {}
+  return config;
 });
 
 export default API;

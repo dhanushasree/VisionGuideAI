@@ -1,11 +1,25 @@
+const jwt = require("jsonwebtoken");
+
 module.exports = (req, res, next) => {
-  // Allow root, health, and auth routes without API key
+  /* Public routes — no auth required */
   if (req.path === "/" || req.path === "/health" || req.path.startsWith("/api/auth"))
     return next();
 
-  const key = req.headers["x-api-key"];
-  if (!key || key !== process.env.API_KEY) {
-    return res.status(401).json({ message: "Unauthorized: invalid or missing API key" });
+  /* ── Primary: JWT session token issued at login ── */
+  const sessionToken = req.headers["x-session-token"];
+  if (sessionToken) {
+    try {
+      const payload = jwt.verify(sessionToken, process.env.JWT_SECRET);
+      req.userId = payload.userId;
+      return next();
+    } catch {
+      /* expired or tampered — fall through to API key check */
+    }
   }
-  next();
+
+  /* ── Fallback: static API key (server-to-server / dev testing only) ── */
+  const apiKey = req.headers["x-api-key"];
+  if (apiKey && apiKey === process.env.API_KEY) return next();
+
+  return res.status(401).json({ message: "Unauthorized: please sign in again" });
 };

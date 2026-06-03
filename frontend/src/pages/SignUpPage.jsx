@@ -14,7 +14,7 @@ export default function SignUpPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
-    if (form.password.length < 6) return setError("Password must be at least 6 characters.");
+    if (form.password.length < 8) return setError("Password must be at least 8 characters.");
     if (form.password !== form.confirm) return setError("Passwords do not match.");
     setLoading(true);
     const result = await signUp(form.name.trim(), form.email.trim(), form.password);
@@ -69,7 +69,7 @@ export default function SignUpPage() {
             <div className="form-group">
               <label>Password</label>
               <div style={s.pwdWrap}>
-                <input type={showPwd ? "text" : "password"} placeholder="At least 6 characters" value={form.password}
+                <input type={showPwd ? "text" : "password"} placeholder="At least 8 characters" value={form.password}
                   onChange={(e) => setForm({ ...form, password: e.target.value })} required autoComplete="new-password"
                   style={{ paddingRight: "48px" }} />
                 <button type="button" style={s.eyeBtn} onClick={() => setShowPwd(v => !v)}

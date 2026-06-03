@@ -17,11 +17,12 @@ const TYPE_COLOR = {
   greeting:"#22c55e", contacts:"#60a5fa", locations:"#34d399",
   articles:"#facc15", navigation:"#a78bfa", sos:"#ef4444",
   stop:"#f87171", help:"#fb923c", navigate_app:"#f472b6",
-  time:"#34d399", saved_location_nav:"#38bdf8", unknown:"#6b7280",
+  time:"#34d399", saved_location_nav:"#38bdf8", call:"#34d399", unknown:"#6b7280",
 };
 
 const QUICK = [
   { icon:"📞", label:"Read Contacts",    cmd:"read contacts" },
+  { icon:"📲", label:"Call a Contact",   cmd:"call" },
   { icon:"📍", label:"Read Locations",   cmd:"read saved locations" },
   { icon:"📖", label:"Read Articles",    cmd:"read articles" },
   { icon:"🚨", label:"Send SOS",         cmd:"send sos" },
@@ -40,23 +41,31 @@ export default function VoiceAssistantPage() {
   const navigate     = useNavigate();
   const isDark       = settings.theme === "dark";
 
-  const [phase, setPhase] = useState("idle"); // idle|recording|processing|speaking
-  const [msgs,  setMsgs]  = useState([]);
-  const [input, setInput] = useState("");
-  const [log,   setLog]   = useState("Ready — click START to begin");
+  const [phase,      setPhase]      = useState("idle"); // idle|recording|processing|speaking
+  const [isListening, setIsListening] = useState(false);
+  const [msgs,       setMsgs]       = useState([]);
+  const [input,      setInput]      = useState("");
+  const [log,        setLog]        = useState("Ready — click Start Listening to begin");
 
-  const phaseRef = useRef("idle");
-  const recRef   = useRef(null);
-  const aliveRef = useRef(true);
-  const genRef   = useRef(0);
-  const endRef   = useRef(null);
+  const phaseRef    = useRef("idle");
+  const recRef      = useRef(null);
+  const recognitionRef = useRef(null); // alias kept for clarity
+  const aliveRef    = useRef(true);
+  const genRef      = useRef(0);
+  const endRef      = useRef(null);
+  const timeoutRef  = useRef(null);
 
-  function setPhaseSync(p) { phaseRef.current = p; setPhase(p); }
+  function setPhaseSync(p) {
+    phaseRef.current = p;
+    setPhase(p);
+    setIsListening(p === "recording");
+  }
 
   useEffect(() => {
     aliveRef.current = true;
     return () => {
       aliveRef.current = false;
+      clearTimeout(timeoutRef.current);
       if (recRef.current) { try { recRef.current.abort(); } catch {} recRef.current = null; }
       window.speechSynthesis.cancel();
     };
@@ -70,8 +79,10 @@ export default function VoiceAssistantPage() {
     setMsgs(p => [...p.slice(-49), { role, text, type, time }]);
   }
 
-  /* ═══ START LISTENING via SpeechRecognition ═══ */
-  function startRecording() {
+  /* ═══════════════════════════════════════════════════════
+     START LISTENING
+  ═══════════════════════════════════════════════════════ */
+  async function startListening() {
     if (phaseRef.current !== "idle") return;
 
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -80,64 +91,153 @@ export default function VoiceAssistantPage() {
       return;
     }
 
+    /* Lock phase immediately so double-clicks are ignored */
+    phaseRef.current = "recording";
+    setPhase("recording");
+    setIsListening(true);
+    setLog("Listening… Please speak now.");
+
+    /* Pause the "Hey Zara" background wake-word listener in DashboardLayout.
+       Chrome only allows one SpeechRecognition at a time — without this pause
+       the wake listener restarts ~400ms after our session starts and kills it. */
+    if (window._vgPauseWake) {
+      try { await window._vgPauseWake(); } catch {}
+    }
+
+    /* Kill any stale instance */
+    clearTimeout(timeoutRef.current);
+    if (recRef.current) {
+      try { recRef.current.abort(); } catch {}
+      recRef.current = null;
+    }
+
+    /* Small delay lets Chrome fully release the mic from the wake listener */
+    setTimeout(() => _doStart(SR), 150);
+  }
+
+  function _doStart(SR) {
+    if (!aliveRef.current || phaseRef.current !== "recording") return;
+
     const rec = new SR();
-    rec.lang = "en-IN";
-    rec.continuous = false;
-    rec.interimResults = false;
+    rec.lang            = "en-IN";   // Indian English — works for most Indian accents
+    rec.continuous      = true;      // keep listening until command received or STOP clicked
+    rec.interimResults  = true;      // show live partial text while speaking
     rec.maxAlternatives = 1;
-    recRef.current = rec;
+    recRef.current      = rec;
+    recognitionRef.current = rec;
+
+    let finalText    = "";
+    let commandFired = false;
+
+    /* ── 10-second silence timeout ── */
+    timeoutRef.current = setTimeout(() => {
+      if (phaseRef.current !== "recording" || commandFired) return;
+      commandFired = true;
+      if (recRef.current) { try { recRef.current.stop(); } catch {} }
+      setPhaseSync("idle");
+      setLog("Ready — click Start Listening to begin");
+      tts("I could not hear your voice. Please try again.");
+    }, 10000);
 
     rec.onstart = () => {
       if (!aliveRef.current) return;
-      setPhaseSync("recording");
-      setLog("🔴 Listening… speak now, then click STOP");
+      finalText    = "";
+      commandFired = false;
+      setLog("🔴 Listening… Please speak now.");
     };
 
     rec.onresult = (e) => {
-      const text = e.results[0][0].transcript.trim();
-      if (!aliveRef.current || !text) return;
-      setLog(`Heard: "${text}"`);
-      runCommand(text);
+      if (!aliveRef.current || commandFired) return;
+
+      let interim = "";
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const t = e.results[i][0].transcript;
+        if (e.results[i].isFinal) finalText += t + " ";
+        else interim = t;
+      }
+
+      /* Show live transcription feedback */
+      const display = (finalText + interim).trim();
+      if (display) setLog(`🎙️ "${display}"`);
+
+      /* Fire command as soon as a final result arrives */
+      if (finalText.trim() && !commandFired) {
+        commandFired = true;
+        clearTimeout(timeoutRef.current);
+        const spokenText = finalText.trim();
+        try { rec.stop(); } catch {}   // stop recognition — onend will fire but commandFired guards it
+        runCommand(spokenText);
+      }
     };
 
     rec.onerror = (e) => {
       if (!aliveRef.current) return;
-      if (e.error === "no-speech") {
-        setLog("No speech detected. Click START and try again.");
-      } else if (e.error === "not-allowed" || e.error === "permission-denied") {
-        setLog("❌ Microphone blocked. Allow mic in browser settings and try again.");
+      clearTimeout(timeoutRef.current);
+      recRef.current = null;
+      commandFired   = true;
+
+      if (e.error === "aborted") {
+        /* Browser-internal abort — not a user-facing error; silently reset */
+        if (phaseRef.current === "recording") {
+          setPhaseSync("idle");
+          setLog("Ready — click Start Listening to begin");
+        }
+        return;
+      }
+
+      if (e.error === "not-allowed" || e.error === "permission-denied") {
+        setLog("❌ Microphone permission is blocked. Please allow microphone access in Chrome.");
+      } else if (e.error === "no-speech") {
+        setLog("No speech detected. Please speak clearly and try again.");
+        tts("I could not hear your voice. Please try again and speak clearly.");
+      } else if (e.error === "audio-capture") {
+        setLog("❌ Microphone is not detected. Please check your microphone.");
+      } else if (e.error === "network") {
+        setLog("❌ Chrome speech recognition needs internet. Please check your connection.");
       } else {
-        setLog(`❌ Error: ${e.error}. Try again.`);
+        setLog("Voice recognition failed. Please try again.");
       }
       setPhaseSync("idle");
     };
 
     rec.onend = () => {
-      /* If still in recording phase (no result came), go back to idle */
-      if (phaseRef.current === "recording" && aliveRef.current) {
+      clearTimeout(timeoutRef.current);
+      recRef.current = null;
+      if (!aliveRef.current) return;
+      /* commandFired = true means runCommand was already called in onresult — do nothing */
+      if (!commandFired && finalText.trim() && phaseRef.current === "recording") {
+        runCommand(finalText.trim());
+      } else if (!commandFired && phaseRef.current === "recording") {
         setPhaseSync("idle");
-        setLog("Ready — click START to begin");
+        setLog("Ready — click Start Listening to begin");
       }
     };
 
     try {
       rec.start();
-      setLog("Requesting microphone…");
     } catch (err) {
+      clearTimeout(timeoutRef.current);
+      setPhaseSync("idle");
       setLog(`❌ Could not start microphone: ${err.message}`);
     }
   }
 
-  /* ═══ STOP LISTENING ═══ */
-  function stopRecording() {
+  /* ═══════════════════════════════════════════════════════
+     STOP LISTENING
+  ═══════════════════════════════════════════════════════ */
+  function stopListening() {
     if (phaseRef.current !== "recording") return;
-    if (recRef.current) {
-      try { recRef.current.stop(); } catch {}
-    }
-    setLog("Processing…");
+    clearTimeout(timeoutRef.current);
+    if (recRef.current) { try { recRef.current.stop(); } catch {} }
+    setPhaseSync("idle");
+    setLog("Listening stopped.");
+    /* Resume the background wake-word listener */
+    if (window._vgResumeWake) window._vgResumeWake();
   }
 
-  /* ═══ COMMAND PROCESSOR ═══ */
+  /* ═══════════════════════════════════════════════════════
+     COMMAND PROCESSOR
+  ═══════════════════════════════════════════════════════ */
   async function runCommand(text) {
     if (!text?.trim() || !aliveRef.current) return;
     const t   = text.toLowerCase().trim();
@@ -148,7 +248,7 @@ export default function VoiceAssistantPage() {
     window.speechSynthesis.cancel();
     addMsg("user", text);
 
-    let reply = "", type = "unknown", nav = "";
+    let reply = "", type = "unknown", nav = "", callPerson = "";
 
     if (has("stop","quiet","silence","mute","shut up"))
       { window.speechSynthesis.cancel(); reply="Stopped."; type="stop"; }
@@ -161,9 +261,22 @@ export default function VoiceAssistantPage() {
     else if (t==="time"||has("what time","current time","what is the time","what's the time","time please"))
       { reply=`The time is ${new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}.`; type="time"; }
     else if (t==="help"||has("what can i say","what can you do","list commands","available commands","how to use"))
-      { reply="Say hello, read contacts, read articles, read saved locations, send SOS, hospital near me, pharmacy near me, ATM near me, police station near me, bus stop near me, hotel near me, what time is it, navigate to a place, go to dashboard, stop, or help."; type="help"; }
+      { reply="Say: hello, call John, read contacts, read articles, read saved locations, send SOS, hospital near me, pharmacy near me, ATM near me, what time is it, navigate to a place, go to dashboard, stop, or help."; type="help"; }
     else if (has("read contact","show contact","emergency contact","my contact","saved contact","contact list","who to call"))
       { reply="Reading your emergency contacts now."; type="contacts"; }
+    else if (/\b(call|phone|dial|ring)\b/.test(t) && !has("for help","ambulance","sos","emergency help","read contact","contact list","call for")) {
+      /* Extract the name: strip common filler words around the verb */
+      const name = t
+        .replace(/\b(please|can you|could you|i want to|i need to|help me)\b/g,"")
+        .replace(/\b(call|phone|dial|ring)\b/g,"")
+        .replace(/\b(my|the|a|an|contact|person|number|mobile|phone number)\b/g,"")
+        .replace(/\s+/g," ").trim();
+      if (name.length > 0) {
+        callPerson = name;
+        reply = `Calling ${name}. Looking up in your contacts.`;
+        type  = "call";
+      }
+    }
     else if (has("read article","show article","saved article","my article","read news"))
       { reply="Reading your saved articles now."; type="articles"; }
     else if (t==="locations"||t==="saved locations"||has("read location","show location","read saved location","saved place","my location"))
@@ -185,7 +298,7 @@ export default function VoiceAssistantPage() {
       ];
       if (has("near me","nearby","nearest","close by","around me")) {
         const hit = NEARBY.find(p => p.n.some(n => t.includes(n)));
-        if (hit) { reply=`Opening Google Maps for ${hit.k} near you.`; type="navigation"; nav=`${hit.k} near me`; }
+        if (hit) { reply=`Opening navigation for ${hit.k} near you. Getting distance and directions.`; type="navigation"; nav=`${hit.k} near me`; }
       }
       if (!reply && has("go to","open the","take me to","switch to","show me")) {
         const pg = getPage(t); if (pg) { reply=`Opening ${pg}.`; type="navigate_app"; }
@@ -193,7 +306,7 @@ export default function VoiceAssistantPage() {
       if (!reply && has("navigate to","go to","take me to","directions to","route to","drive to")) {
         const d = cleanDest(t);
         const pages = ["dashboard","voice","camera","object","contact","emergency","article","navigation","safewalk","location","command","history","feedback","setting"];
-        if (d && d.length>1 && !pages.some(p=>d.includes(p))) { reply=`Looking up ${d} in saved locations.`; type="saved_location_nav"; nav=d; }
+        if (d && d.length>1 && !pages.some(p=>d.includes(p))) { reply=`Opening navigation to ${d}. Getting distance and directions.`; type="navigation"; nav=d; }
       }
       if (!reply) {
         try {
@@ -209,16 +322,19 @@ export default function VoiceAssistantPage() {
     setPhaseSync("speaking"); setLog("Speaking reply…");
 
     const u = tts(reply);
-    const fb = setTimeout(() => { if(aliveRef.current){setPhaseSync("idle");setLog("Ready — click START to begin");} }, 25000);
+    const fb = setTimeout(() => { if(aliveRef.current){setPhaseSync("idle");setLog("Ready — click Start Listening to begin");if(window._vgResumeWake)window._vgResumeWake();} }, 25000);
     const done = () => {
       clearTimeout(fb);
       if (!aliveRef.current) return;
-      setPhaseSync("idle"); setLog("Ready — click START to begin");
+      setPhaseSync("idle"); setLog("Ready — click Start Listening to begin");
+      /* Resume background wake-word listener now that we're done speaking */
+      if (window._vgResumeWake) window._vgResumeWake();
       if (type==="contacts")  setTimeout(()=>doContacts(gen),400);
       if (type==="locations") setTimeout(()=>doLocations(gen),400);
       if (type==="articles")  setTimeout(()=>doArticles(gen),400);
       if (type==="sos")       setTimeout(()=>doSOS(gen),400);
-      if (type==="navigation"&&nav)         setTimeout(()=>openMaps(nav),400);
+      if (type==="call"&&callPerson)        setTimeout(()=>doCall(callPerson,gen),400);
+      if (type==="navigation"&&nav)         setTimeout(()=>openNavPage(nav),400);
       if (type==="saved_location_nav"&&nav) setTimeout(()=>findLoc(nav,gen),400);
     };
     if (u) { u.onend=done; u.onerror=done; } else done();
@@ -233,12 +349,27 @@ export default function VoiceAssistantPage() {
     for (const [k,p] of Object.entries(map)) { if (t.includes(k)) { navigate(p); return p.split("/").pop()||"dashboard"; } }
     return null;
   }
-  const cleanDest = t => t.replace(/\b(navigate to|go to|open map for|directions? to|take me to|find|search for|map to|open|drive to|route to)\b/gi,"").trim();
-  const openMaps  = q => q?.trim() && window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`,"_blank");
+  const cleanDest   = t => t.replace(/\b(navigate to|go to|open map for|directions? to|take me to|find|search for|map to|open|drive to|route to)\b/gi,"").trim();
+  const openMaps    = q => q?.trim() && window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`,"_blank");
+  /* Navigate to the in-app Navigation page — shows embedded map + route + TTS distance/time */
+  const openNavPage = q => q?.trim() && navigate(`/dashboard/navigation?dest=${encodeURIComponent(q)}`);
+
+  /* Spell every digit individually so TTS says "9 8 7 6" not "nine billion" */
+  const spellPhone = (p) => {
+    if (!p) return "";
+    return String(p).replace(/\D/g, "").split("").join(" ");
+  };
 
   async function doContacts(gen) {
-    try { const r=await API.get("/emergency"); if(gen!==genRef.current)return; tts(!r.data.length?"No emergency contacts.":r.data.map((c,i)=>`Contact ${i+1}: ${c.name}, ${c.phone}.`).join(" ")); }
-    catch { if(gen===genRef.current) tts("Could not read contacts."); }
+    try {
+      const r = await API.get("/emergency");
+      if (gen !== genRef.current) return;
+      if (!r.data.length) { tts("No emergency contacts saved."); return; }
+      const text = r.data.map((c, i) =>
+        `Contact ${i + 1}: ${c.name}. Number: ${spellPhone(c.phone)}.`
+      ).join("  ");
+      tts(text);
+    } catch { if (gen===genRef.current) tts("Could not read contacts."); }
   }
   async function doLocations(gen) {
     try { const r=await API.get("/locations"); if(gen!==genRef.current)return; tts(!r.data.length?"No saved locations.":r.data.map((l,i)=>`Location ${i+1}: ${l.place_name}. ${l.address||""}.`).join(" ")); }
@@ -251,6 +382,36 @@ export default function VoiceAssistantPage() {
   async function doSOS(gen) {
     try { await API.post("/sos",{message:"Emergency! I need help.",location:"Voice command"}); if(gen===genRef.current) tts("SOS sent. Emergency contacts notified."); }
     catch { if(gen===genRef.current) tts("Could not send SOS."); }
+  }
+
+  async function doCall(name, gen) {
+    if (gen !== genRef.current) return;
+    try {
+      const r = await API.get("/emergency");
+      if (gen !== genRef.current) return;
+      const contacts = r.data || [];
+      if (!contacts.length) { tts("You have no emergency contacts saved."); return; }
+
+      /* Case-insensitive partial match on name */
+      const q = name.toLowerCase();
+      const match = contacts.find(c =>
+        c.name?.toLowerCase().includes(q) || q.includes(c.name?.toLowerCase())
+      );
+
+      if (match) {
+        const phone = match.phone?.replace(/\s+/g, "");
+        addMsg("assistant", `📞 Calling ${match.name} — ${match.phone}`, "call");
+        tts(`Calling ${match.name}. Number: ${spellPhone(match.phone)}.`);
+        /* Delay so TTS finishes before browser switches to dialler */
+        setTimeout(() => { window.location.href = `tel:${phone}`; }, 1800);
+      } else {
+        /* Speak all contact names so user knows what to say */
+        const names = contacts.map(c => c.name).join(", ");
+        tts(`Contact "${name}" not found. Your saved contacts are: ${names}.`);
+      }
+    } catch {
+      if (gen === genRef.current) tts("Could not access contacts. Please try again.");
+    }
   }
   async function findLoc(dest,gen) {
     try {
@@ -282,7 +443,7 @@ export default function VoiceAssistantPage() {
 
         <div style={{marginBottom:"24px"}}>
           <h1 style={{fontSize:"22px",fontWeight:800,color:C.text,margin:0}}>🎤 Voice Assistant</h1>
-          <p style={{color:C.sub,margin:"4px 0 0",fontSize:"13px"}}>Click START → speak your command → response is spoken aloud</p>
+          <p style={{color:C.sub,margin:"4px 0 0",fontSize:"13px"}}>Click Start Listening → speak your command → response is spoken aloud</p>
         </div>
 
         <div style={{display:"grid",gridTemplateColumns:"minmax(0,1.1fr) minmax(0,1fr)",gap:"20px",alignItems:"start"}}>
@@ -324,42 +485,36 @@ export default function VoiceAssistantPage() {
                 {log}
               </p>
 
-              {/* ── BUTTONS ── */}
+              {/* ── SINGLE TOGGLE BUTTON ── */}
               <div style={{display:"flex",gap:"12px",justifyContent:"center",flexWrap:"wrap"}}>
 
-                {/* START button — visible when idle */}
-                {!isRec&&!isProc&&(
+                {/* Start / Stop Listening toggle — hidden only during processing/speaking */}
+                {!isProc&&(
                   <button
-                    onClick={startRecording}
+                    onClick={isListening ? stopListening : startListening}
                     disabled={isSpk}
                     style={{
                       padding:"14px 36px",borderRadius:"14px",fontSize:"16px",fontWeight:800,
-                      background:"#22c55e",color:"#000",border:"none",cursor:isSpk?"not-allowed":"pointer",
-                      fontFamily:"inherit",letterSpacing:"0.04em",opacity:isSpk?0.5:1,
-                      boxShadow:"0 4px 20px rgba(34,197,94,0.35)",transition:"all 0.2s",
-                    }}>
-                    🎤 START
-                  </button>
-                )}
-
-                {/* STOP button — visible when recording */}
-                {isRec&&(
-                  <button
-                    onClick={stopRecording}
-                    style={{
-                      padding:"14px 36px",borderRadius:"14px",fontSize:"16px",fontWeight:800,
-                      background:"#ef4444",color:"#fff",border:"none",cursor:"pointer",
+                      background: isListening ? "#ef4444" : "#22c55e",
+                      color: isListening ? "#fff" : "#000",
+                      border:"none",
+                      cursor: isSpk ? "not-allowed" : "pointer",
                       fontFamily:"inherit",letterSpacing:"0.04em",
-                      boxShadow:"0 4px 20px rgba(239,68,68,0.4)",animation:"vaStopPulse 1s ease-in-out infinite",
+                      opacity: isSpk ? 0.5 : 1,
+                      boxShadow: isListening
+                        ? "0 4px 20px rgba(239,68,68,0.4)"
+                        : "0 4px 20px rgba(34,197,94,0.35)",
+                      animation: isListening ? "vaStopPulse 1s ease-in-out infinite" : "none",
+                      transition:"all 0.2s",
                     }}>
-                    ⏹ STOP
+                    {isListening ? "⏹ Stop Listening" : "🎤 Start Listening"}
                   </button>
                 )}
 
-                {/* STOP SPEAKING button */}
+                {/* Stop Speaking button */}
                 {isSpk&&(
                   <button
-                    onClick={()=>{window.speechSynthesis.cancel();setPhaseSync("idle");setLog("Ready — click START to begin");}}
+                    onClick={()=>{window.speechSynthesis.cancel();setPhaseSync("idle");setLog("Ready — click Start Listening to begin");}}
                     style={{padding:"10px 24px",borderRadius:"12px",fontSize:"14px",fontWeight:700,background:"rgba(239,68,68,0.1)",border:"1px solid rgba(239,68,68,0.3)",color:"#f87171",cursor:"pointer",fontFamily:"inherit"}}>
                     ⏹ Stop Speaking
                   </button>
@@ -374,7 +529,7 @@ export default function VoiceAssistantPage() {
                 style={{flex:1,padding:"13px 16px",borderRadius:"12px",fontSize:"14px",fontFamily:"inherit",background:C.inp,border:`2px solid ${C.inB}`,color:C.text,outline:"none"}}/>
               <button onClick={handleSend} disabled={!input.trim()}
                 style={{padding:"13px 22px",borderRadius:"12px",background:"#22c55e",color:"#000",border:"none",fontWeight:700,fontSize:"14px",cursor:"pointer",fontFamily:"inherit",opacity:input.trim()?1:0.5}}>
-                Send
+                Send Command
               </button>
             </div>
 
@@ -405,7 +560,7 @@ export default function VoiceAssistantPage() {
                 {msgs.length===0
                   ?<div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:"12px",opacity:0.4,textAlign:"center"}}>
                     <span style={{fontSize:"48px"}}>🎤</span>
-                    <p style={{fontSize:"13px",color:C.sub,margin:0,lineHeight:1.7}}>Click START and speak a command.<br/>Your conversation appears here.</p>
+                    <p style={{fontSize:"13px",color:C.sub,margin:0,lineHeight:1.7}}>Click Start Listening and speak a command.<br/>Your conversation appears here.</p>
                   </div>
                   :msgs.map((m,i)=>(
                     <div key={i} style={{display:"flex",flexDirection:"column",alignItems:m.role==="user"?"flex-end":"flex-start"}}>

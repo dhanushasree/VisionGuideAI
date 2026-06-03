@@ -20,25 +20,6 @@ export default function SignInPage() {
     else setError(result.error);
   };
 
-  const handleDemo = async () => {
-    const demoEmail = "demo@visionguide.ai";
-    const demoPass  = "demo123456";
-    setLoading(true);
-    // Register demo user if not present
-    const users = JSON.parse(localStorage.getItem("visionguide_users") || "[]");
-    if (!users.find((u) => u.email === demoEmail)) {
-      users.push({ id: 999, name: "Demo User", email: demoEmail, password: demoPass, createdAt: new Date().toISOString() });
-      localStorage.setItem("visionguide_users", JSON.stringify(users));
-    }
-    const result = await signIn(demoEmail, demoPass);
-    setLoading(false);
-    if (result.success) navigate("/dashboard");
-    else {
-      // Force demo login via localStorage
-      localStorage.setItem("visionguide_user", JSON.stringify({ id: 999, name: "Demo User", email: demoEmail }));
-      navigate("/dashboard");
-    }
-  };
 
   return (
     <div style={s.page}>
@@ -109,16 +90,6 @@ export default function SignInPage() {
               {loading ? "Signing in…" : "Sign In →"}
             </button>
           </form>
-
-          <div style={s.dividerRow}>
-            <hr style={s.dividerLine} />
-            <span style={s.dividerText}>or</span>
-            <hr style={s.dividerLine} />
-          </div>
-
-          <button style={s.demoBtn} onClick={handleDemo} disabled={loading}>
-            ⚡ Try Demo Account
-          </button>
 
           <p style={s.bottomText}>
             Don't have an account?{" "}

@@ -1,9 +1,11 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { useAccessibility } from "../context/AccessibilityContext";
 import DashboardLayout from "../components/DashboardLayout";
+import API from "../api.js";
 
 const COLORS = ["#22c55e","#facc15","#ef4444","#60a5fa","#a78bfa","#f472b6","#fb923c","#34d399"];
-const SCORE_THRESHOLD = 0.06; // very low — catch everything COCO-SSD can find
+const SCORE_THRESHOLD = 0.35; // balanced — avoids false positives while catching real objects
+const LIVE_THRESHOLD  = 0.40; // slightly stricter for real-time camera to reduce flicker
 const MOBILENET_TOPK  = 7;    // top-7 from MobileNet (1000 ImageNet classes)
 
 export default function ObjectDetectionPage() {
@@ -26,6 +28,8 @@ export default function ObjectDetectionPage() {
   const [ocrText,        setOcrText]        = useState("");
   const [ocrProgress,    setOcrProgress]    = useState(0);
   const [ocrRunning,     setOcrRunning]     = useState(false);
+  const [aiDescription,  setAiDescription]  = useState("");
+  const [aiAnalyzing,    setAiAnalyzing]    = useState(false);
 
   const modelRef      = useRef(null); // COCO-SSD (live camera)
   const detrRef       = useRef(null); // DETR-ResNet-50 (uploaded images, high accuracy)
@@ -114,6 +118,7 @@ export default function ObjectDetectionPage() {
     setImgSrc(url);
     setPredictions([]);
     setClassifications([]);
+    setAiDescription("");
     setOcrText("");
     setOcrProgress(0);
     const cv = canvasRef.current;
@@ -131,6 +136,32 @@ export default function ObjectDetectionPage() {
     const [x, y, w, h] = p.bbox;
     return { label: p.class, score: p.score, x, y, w, h };
   };
+
+  /* ── Non-Maximum Suppression: remove overlapping duplicate boxes ── */
+  const computeIoU = (a, b) => {
+    const x1 = Math.max(a.x, b.x), y1 = Math.max(a.y, b.y);
+    const x2 = Math.min(a.x + a.w, b.x + b.w), y2 = Math.min(a.y + a.h, b.y + b.h);
+    const inter = Math.max(0, x2 - x1) * Math.max(0, y2 - y1);
+    const union = a.w * a.h + b.w * b.h - inter;
+    return union > 0 ? inter / union : 0;
+  };
+
+  const applyNMS = useCallback((rawPreds, imgW, imgH, iouThreshold = 0.45) => {
+    if (rawPreds.length <= 1) return rawPreds;
+    const normed = rawPreds.map(p => ({ ...normPred(p, imgW, imgH), _orig: p }));
+    const sorted = [...normed].sort((a, b) => b.score - a.score);
+    const keep = [];
+    const suppressed = new Set();
+    for (let i = 0; i < sorted.length; i++) {
+      if (suppressed.has(i)) continue;
+      keep.push(sorted[i]._orig);
+      for (let j = i + 1; j < sorted.length; j++) {
+        if (!suppressed.has(j) && computeIoU(sorted[i], sorted[j]) > iouThreshold) suppressed.add(j);
+      }
+    }
+    return keep;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   /* ── Draw bounding boxes on IMAGE canvas (handles COCO-SSD + DETR) ── */
   const drawBoxesOnImage = (preds, imgEl) => {
@@ -197,6 +228,34 @@ export default function ObjectDetectionPage() {
     return m;
   };
 
+  /* ── AI Vision: send image to backend Groq LLaMA Vision for rich description ── */
+  const analyzeWithAI = useCallback(async (imgEl) => {
+    setAiAnalyzing(true);
+    setAiDescription("");
+    try {
+      const maxSide = 640;
+      const nw = imgEl.naturalWidth || imgEl.width;
+      const nh = imgEl.naturalHeight || imgEl.height;
+      const scale = Math.min(1, maxSide / Math.max(nw, nh, 1));
+      const c = document.createElement("canvas");
+      c.width  = Math.round(nw * scale);
+      c.height = Math.round(nh * scale);
+      c.getContext("2d").drawImage(imgEl, 0, 0, c.width, c.height);
+      const blob = await new Promise(res => c.toBlob(res, "image/jpeg", 0.82));
+      const form = new FormData();
+      form.append("image", blob, "image.jpg");
+      const { data } = await API.post("/analyze-image", form);
+      const desc = data.description || "";
+      setAiDescription(desc);
+      return desc;
+    } catch (err) {
+      console.warn("[AI Vision] failed:", err.message);
+      return "";
+    } finally {
+      setAiAnalyzing(false);
+    }
+  }, []);
+
   /* ── Detect objects in uploaded image ──
      Uses DETR-ResNet-50 (transformer, high accuracy) when loaded,
      falls back to COCO-SSD + MobileNet otherwise.              ── */
@@ -206,45 +265,55 @@ export default function ObjectDetectionPage() {
     setDetecting(true);
     setPredictions([]);
     setClassifications([]);
+    setAiDescription("");
     try {
       const img = imgRef.current;
       if (!img.complete || img.naturalWidth === 0) {
         await new Promise(res => { img.onload = res; });
       }
+      const nW = img.naturalWidth, nH = img.naturalHeight;
 
-      let preds = [];
+      // Run bounding-box detection + AI vision description in parallel
+      const [detResult, aiResult] = await Promise.allSettled([
+        (async () => {
+          if (detrRef.current) {
+            const raw = await detrRef.current(img, { threshold: 0.30 });
+            return applyNMS(raw, nW, nH);
+          }
+          const model = await ensureModel();
+          const raw   = await model.detect(img);
+          return applyNMS(raw.filter(p => p.score >= SCORE_THRESHOLD), nW, nH);
+        })(),
+        analyzeWithAI(img),
+      ]);
 
-      if (detrRef.current) {
-        // ── DETR path (high accuracy transformer model) ──
-        const raw = await detrRef.current(img, { threshold: 0.3 });
-        preds = raw; // [{ label, score, box: {xmin,ymin,xmax,ymax} }]
-      } else {
-        // ── COCO-SSD fallback ──
-        const model = await ensureModel();
-        const raw = await model.detect(img);
-        preds = raw.filter(p => p.score >= SCORE_THRESHOLD);
-      }
+      const preds       = detResult.status === "fulfilled" ? detResult.value : [];
+      const aiDesc      = aiResult.status  === "fulfilled" ? aiResult.value  : "";
 
       setPredictions(preds);
       drawBoxesOnImage(preds, img);
 
-      // MobileNet for supplementary classification (1000+ categories)
+      // MobileNet supplementary classification (1000+ categories)
       let classifs = [];
       if (mobileNetRef.current) {
         classifs = await mobileNetRef.current.classify(img, MOBILENET_TOPK);
         setClassifications(classifs);
       }
 
-      // Build speech: just the names
-      const mainNames = [...new Set(preds.map(p => p.label ?? p.class))];
-      const mobileNames = classifs.slice(0, 3).map(c => c.className.split(",")[0].trim());
-      if (mainNames.length === 0 && classifs.length === 0) {
-        speak("No objects detected. Try a clearer photo with better lighting.");
-      } else if (mainNames.length === 0) {
-        speak(mobileNames.join(", "));
+      // Speech: AI description is richest; fall back to label list
+      if (aiDesc) {
+        speak(aiDesc);
       } else {
-        const extra = mobileNames.filter(n => !mainNames.some(m => m.toLowerCase().includes(n.toLowerCase().split(" ")[0])));
-        speak([...mainNames, ...extra.slice(0, 2)].join(", "));
+        const mainNames  = [...new Set(preds.map(p => p.label ?? p.class))];
+        const mobileNames = classifs.slice(0, 3).map(c => c.className.split(",")[0].trim());
+        if (mainNames.length === 0 && classifs.length === 0) {
+          speak("No objects detected. Try a clearer photo with better lighting.");
+        } else if (mainNames.length === 0) {
+          speak(mobileNames.join(", "));
+        } else {
+          const extra = mobileNames.filter(n => !mainNames.some(m => m.toLowerCase().includes(n.toLowerCase().split(" ")[0])));
+          speak([...mainNames, ...extra.slice(0, 2)].join(", "));
+        }
       }
     } catch (err) {
       console.error(err);
@@ -252,7 +321,7 @@ export default function ObjectDetectionPage() {
     }
     setDetecting(false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scriptReady, imgSrc, speak, detrReady]);
+  }, [scriptReady, imgSrc, speak, detrReady, analyzeWithAI, applyNMS]);
 
   /* ── Preprocess canvas for better OCR ── */
   const preprocessForOCR = (src) => {
@@ -368,7 +437,8 @@ export default function ObjectDetectionPage() {
           mobileNetRef.current ? mobileNetRef.current.classify(v, MOBILENET_TOPK) : Promise.resolve([]),
         ]);
 
-        const preds = cocoPreds.filter(p => p.score >= SCORE_THRESHOLD);
+        const filtered = cocoPreds.filter(p => p.score >= LIVE_THRESHOLD);
+        const preds = applyNMS(filtered, v.videoWidth || 640, v.videoHeight || 480);
         setPredictions(preds);
         setClassifications(classifs);
         drawBoxesOnCamera(preds, v);
@@ -419,9 +489,10 @@ export default function ObjectDetectionPage() {
   };
 
   const speakAllResults = () => {
-    if (!predictions.length && !classifications.length) {
+    if (!predictions.length && !classifications.length && !aiDescription) {
       speak("No detection results yet."); return;
     }
+    if (aiDescription) { speak(aiDescription); return; }
     const parts = [];
     if (predictions.length) {
       parts.push(predictions.map(p => p.label ?? p.class).join(", "));
@@ -614,6 +685,24 @@ export default function ObjectDetectionPage() {
                           })}
                         </div>
                       </>
+                    )}
+
+                    {/* AI Vision description */}
+                    {(aiAnalyzing || aiDescription) && (
+                      <div style={{ marginBottom: "12px" }}>
+                        <div style={{ fontSize: "11px", color: "#f472b6", fontWeight: 700, marginBottom: "6px", textTransform: "uppercase" }}>
+                          AI Scene Analysis · LLaMA Vision {aiAnalyzing ? "⏳" : "✦"}
+                        </div>
+                        {aiAnalyzing ? (
+                          <div style={{ color: C.sub, fontSize: "12px", padding: "8px 0" }}>Analyzing scene…</div>
+                        ) : (
+                          <div
+                            style={{ padding: "10px 12px", borderRadius: "10px", background: "rgba(244,114,182,0.07)", border: "1px solid rgba(244,114,182,0.2)", fontSize: "13px", color: C.text, lineHeight: 1.6, cursor: "pointer" }}
+                            onClick={() => speak(aiDescription)}>
+                            {aiDescription}
+                          </div>
+                        )}
+                      </div>
                     )}
 
                     {/* MobileNet scene classification results */}

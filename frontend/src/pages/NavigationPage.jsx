@@ -4,6 +4,16 @@ import DashboardLayout from "../components/DashboardLayout";
 import { useAccessibility } from "../context/AccessibilityContext";
 import API from "../api";
 
+/* ── Safe JSON: catches XML / HTML error pages from public APIs ── */
+const safeJson = async (res) => {
+  const ct = res.headers.get("content-type") || "";
+  if (!ct.includes("json")) {
+    await res.text(); // drain body
+    throw new Error(`Routing server returned an error (HTTP ${res.status}). Please try again.`);
+  }
+  return res.json();
+};
+
 /* ── Direction helpers ── */
 const DIR_ICON = {
   right: "→", sharp_right: "↱", slight_right: "↗",
@@ -23,14 +33,20 @@ const getIcon = (m) => {
 
 const getInstruction = (m) => {
   if (!m) return "Continue";
-  if (m.type === "depart")  return "Start";
+  if (m.type === "depart")  return "Head out";
   if (m.type === "arrive")  return "Arrive at destination";
-  if (m.type === "roundabout") return "Take the roundabout";
+  if (m.type === "roundabout" || m.type === "rotary") {
+    return m.exit ? `Take exit ${m.exit} at the roundabout` : "Take the roundabout";
+  }
   const mod = m.modifier || "";
-  if (mod.includes("right")) return "Turn right";
-  if (mod.includes("left"))  return "Turn left";
-  if (mod === "uturn")       return "Make a U-turn";
-  if (mod === "straight")    return "Go straight";
+  if (mod === "sharp right")  return "Turn sharp right";
+  if (mod === "right")        return "Turn right";
+  if (mod === "slight right") return "Bear right";
+  if (mod === "sharp left")   return "Turn sharp left";
+  if (mod === "left")         return "Turn left";
+  if (mod === "slight left")  return "Bear left";
+  if (mod === "uturn")        return "Make a U-turn";
+  if (mod === "straight")     return "Continue straight";
   return "Continue";
 };
 
@@ -110,14 +126,15 @@ export default function NavigationPage() {
         const { latitude: lat, longitude: lon } = pos.coords;
         try {
           const r = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`,
+            `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=jsonv2`,
             { headers: { "User-Agent": "VisionGuideAI/1.0" } }
           );
-          const data = await r.json();
+          const data = await safeJson(r);
           const label = data.display_name?.split(",").slice(0, 2).join(", ") || "Your location";
-          resolve({ lat, lon, label });
+          const countryCode = data.address?.country_code || "";
+          resolve({ lat, lon, label, countryCode });
         } catch {
-          resolve({ lat, lon, label: `${lat.toFixed(4)}, ${lon.toFixed(4)}` });
+          resolve({ lat, lon, label: `${lat.toFixed(4)}, ${lon.toFixed(4)}`, countryCode: "" });
         }
       },
       (err) => reject(err),
@@ -125,35 +142,89 @@ export default function NavigationPage() {
     );
   });
 
-  /* ── Geocode destination — biased toward user's location for accurate local results ── */
-  const geocode = async (query, nearLat, nearLon) => {
-    // Build viewbox around user's position (±0.3° ≈ ~33km) to prefer local results
-    const biasParams = nearLat && nearLon
-      ? `&viewbox=${nearLon - 0.3},${nearLat + 0.3},${nearLon + 0.3},${nearLat - 0.3}&bounded=0`
+  /* ── Geocode a named destination using Nominatim ── */
+  const geocode = async (query, nearLat, nearLon, countryCode = "") => {
+    const cc  = countryCode ? `&countrycodes=${countryCode}` : "";
+    /* bounded=1 forces results inside the viewbox — prevents returning a place
+       in another country when the user's location is known                    */
+    const box = nearLat && nearLon
+      ? `&viewbox=${nearLon - 0.5},${nearLat + 0.5},${nearLon + 0.5},${nearLat - 0.5}&bounded=1`
       : "";
-    const r = await fetch(
-      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=3&addressdetails=1${biasParams}`,
-      { headers: { "User-Agent": "VisionGuideAI/1.0" } }
-    );
-    const data = await r.json();
-    if (!data.length) throw new Error(`Location not found: ${query}`);
-    // Prefer the result closest to user if we have location
+    const run = async (extra = "") => {
+      const r = await fetch(
+        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=jsonv2&limit=8&addressdetails=1${cc}${extra}`,
+        { headers: { "User-Agent": "VisionGuideAI/1.0" } }
+      );
+      return safeJson(r);
+    };
+    let data = await run(box);
+    /* Retry without bounding box but keep country filter */
+    if (!data.length && nearLat && nearLon) data = await run();
+    /* Last resort: no constraints at all */
+    if (!data.length && countryCode)        data = await run(""); // no cc
+    if (!data.length) throw new Error(`Location not found: "${query}". Try adding your city name.`);
+    /* Pick the result closest to the user using real haversine distance */
     let best = data[0];
     if (nearLat && nearLon && data.length > 1) {
-      const dist = (a, b) => Math.hypot(a.lat - b, a.lon - nearLon);
-      best = data.reduce((closest, item) => {
-        const itemLat = parseFloat(item.lat), itemLon = parseFloat(item.lon);
-        const curLat  = parseFloat(closest.lat), curLon = parseFloat(closest.lon);
-        const dItem   = Math.hypot(itemLat - nearLat, itemLon - nearLon);
-        const dCur    = Math.hypot(curLat  - nearLat, curLon  - nearLon);
-        return dItem < dCur ? item : closest;
-      });
+      best = data.reduce((prev, cur) =>
+        haversineKm(nearLat, nearLon, parseFloat(cur.lat), parseFloat(cur.lon)) <
+        haversineKm(nearLat, nearLon, parseFloat(prev.lat), parseFloat(prev.lon))
+          ? cur : prev
+      );
     }
     return {
       lat:   parseFloat(best.lat),
       lon:   parseFloat(best.lon),
-      label: best.display_name?.split(",").slice(0, 2).join(", "),
+      label: best.display_name?.split(",").slice(0, 3).join(", "),
     };
+  };
+
+  /* ── Find nearest amenity using Overpass radius search ──────────────────────
+     Used for "near me" queries. Nominatim treats "hospital near me" as a place
+     name and returns garbage — Overpass searches by GPS radius for exact results.
+  ─────────────────────────────────────────────────────────────────────────── */
+  const NEAR_ME_RE = /\b(near me|nearby|nearest|close by|around me)\b/i;
+
+  const amenityFromQuery = q => {
+    const t = q.toLowerCase();
+    if (/hospital|clinic|doctor|medical/.test(t))              return "hospital";
+    if (/pharmacy|medicine|chemist|drug/.test(t))              return "pharmacy";
+    if (/\batm\b|cash machine|withdraw/.test(t))               return "atm";
+    if (/police|cop/.test(t))                                  return "police";
+    if (/railway|train station|rail station|metro station/.test(t)) return "train_station";
+    if (/bus stop|bus stand|bus station/.test(t))              return "bus_stop";
+    if (/airport|aerodrome/.test(t))                           return "aerodrome";
+    if (/hotel|lodge|motel|accommodation/.test(t))             return "hotel";
+    if (/restaurant|food|cafe|coffee|fast food/.test(t))       return "restaurant";
+    if (/\bbank\b/.test(t))                                    return "bank";
+    if (/petrol|fuel|gas station|filling station/.test(t))     return "fuel";
+    if (/supermarket|grocery|mall/.test(t))                    return "supermarket";
+    if (/college|university/.test(t))                          return "college";
+    if (/school/.test(t))                                      return "school";
+    return null;
+  };
+
+  const findNearestByOverpass = async (tag, lat, lon) => {
+    const isRailway = tag === "train_station";
+    const isBus     = tag === "bus_stop";
+    const filter    = isRailway
+      ? '["railway"~"^(station|halt)$"]'
+      : isBus ? '["highway"="bus_stop"]'
+      : `["amenity"="${tag}"]`;
+    const radius = isRailway ? 20000 : 10000; // train stations can be farther away
+    const qStr   = `[out:json][timeout:20];(node${filter}(around:${radius},${lat},${lon});way${filter}(around:${radius},${lat},${lon});relation${filter}(around:${radius},${lat},${lon}););out center 15;`;
+    const res    = await fetch(
+      `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(qStr)}`,
+      { signal: AbortSignal.timeout(20000) }
+    );
+    const json = await safeJson(res);
+    if (!json.elements?.length)
+      throw new Error(`No ${tag.replace(/_/g," ")} found nearby. Try a more specific search.`);
+    const sorted = json.elements
+      .map(e => ({ name: e.tags?.name || e.tags?.["name:en"] || tag.replace(/_/g," "), lat: e.lat ?? e.center?.lat, lon: e.lon ?? e.center?.lon }))
+      .filter(p => p.lat && p.lon)
+      .sort((a, b) => haversineKm(lat, lon, a.lat, a.lon) - haversineKm(lat, lon, b.lat, b.lon));
+    return { lat: sorted[0].lat, lon: sorted[0].lon, label: sorted[0].name };
   };
 
   /* ── Fetch nearby places (Overpass API) around destination ── */
@@ -171,7 +242,7 @@ export default function NavigationPage() {
         `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(q)}`,
         { signal: AbortSignal.timeout(14000) }
       );
-      const data = await res.json();
+      const data = await safeJson(res);
       const places = (data.elements || [])
         .filter(e => e.tags?.name || e.tags?.amenity)
         .map(e => ({
@@ -244,19 +315,35 @@ export default function NavigationPage() {
       setCurrentPos(pos);
       if (stopRef.current) return;
 
-      /* Step 2: Geocode destination — biased toward user's position */
+      /* Step 2: Resolve destination coordinates
+         "near me" phrases  → Overpass GPS-radius search (exact real-world match)
+         Named destinations → Nominatim bounded geocoding                        */
       setRouteStatus("geocoding");
-      speak(`Finding ${dest} on the map.`);
-      const destCoords = await geocode(dest, pos.lat, pos.lon);
+      let destCoords;
+      if (NEAR_ME_RE.test(dest)) {
+        const tag = amenityFromQuery(dest);
+        if (!tag) throw new Error("Could not identify place type. Try 'hospital near me'.");
+        speak(`Finding nearest ${tag.replace(/_/g," ")} near you.`);
+        destCoords = await findNearestByOverpass(tag, pos.lat, pos.lon);
+      } else {
+        speak(`Finding ${dest} on the map.`);
+        destCoords = await geocode(dest, pos.lat, pos.lon, pos.countryCode || "");
+      }
       if (stopRef.current) return;
+
+      /* Sanity check — if geocoded point is > 300 km away the match is wrong */
+      const sanityDist = haversineKm(pos.lat, pos.lon, destCoords.lat, destCoords.lon);
+      if (sanityDist > 300) {
+        throw new Error(`Found "${destCoords.label}" but it is ${sanityDist.toFixed(0)} km away — likely wrong. Add your city name, e.g. "${dest}, Chennai".`);
+      }
 
       /* Step 3: OSRM routing */
       setRouteStatus("routing");
       speak("Calculating route.");
       const osrmProfile = mode.osrm;
-      const url = `https://router.project-osrm.org/route/v1/${osrmProfile}/${pos.lon},${pos.lat};${destCoords.lon},${destCoords.lat}?steps=true&overview=false&annotations=false`;
-      const res  = await fetch(url);
-      const data = await res.json();
+      const url = `https://router.project-osrm.org/route/v1/${osrmProfile}/${pos.lon},${pos.lat};${destCoords.lon},${destCoords.lat}?steps=true&overview=false&annotations=false&continue_straight=false&alternatives=false`;
+      const res  = await fetch(url, { signal: AbortSignal.timeout(20000) });
+      const data = await safeJson(res);
 
       if (data.code !== "Ok" || !data.routes?.length) {
         throw new Error("No route found. Try a different transport mode.");
@@ -310,16 +397,18 @@ export default function NavigationPage() {
     const distKm = (r.distance / 1000).toFixed(1);
     const time   = fmtTime(r.duration);
     const eta    = fmtETA(r.duration);
-    let text = `Route by ${r.mode}. `;
-    text += `Total distance: ${distKm} kilometers. Estimated time: ${time}. Arriving at ${eta}. `;
+    let text = `${r.mode} route from ${r.fromLabel} to ${r.destLabel}. `;
+    text += `Total distance: ${distKm} kilometers. Estimated time: ${time}. You will arrive at ${eta}. `;
     if (nearby.length > 0) {
       const names = nearby.slice(0, 3).map(p => p.name).join(", ");
-      text += `Nearby places at destination: ${names}. `;
+      text += `Nearby places: ${names}. `;
     }
-    text += "Turn by turn: ";
+    text += `${r.steps.length} steps. `;
     r.steps.forEach((s, i) => {
-      if (s.type === "arrive") { text += `Step ${i + 1}. Arrive at destination. `; return; }
-      text += `Step ${i + 1}. ${s.instruction}${s.name ? " on " + s.name : ""}. ${fmtDist(s.distance)}. `;
+      if (s.type === "arrive") { text += `Finally, arrive at your destination. `; return; }
+      const road = s.name ? ` onto ${s.name}` : "";
+      const dist = s.distance > 5 ? ` for ${fmtDist(s.distance)}` : "";
+      text += `Step ${i + 1}: ${s.instruction}${road}${dist}. `;
     });
     speak(text);
   };
@@ -454,6 +543,43 @@ export default function NavigationPage() {
             )}
           </div>
         </div>
+
+        {/* ── Google Maps Embed ── */}
+        {destination.trim() && (
+          <div style={{ marginBottom: "20px" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
+              <span style={{ fontSize: "13px", fontWeight: 700, color: C.sub, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                🗺️ Google Maps
+              </span>
+              <button
+                onClick={() => {
+                  const url = currentPos
+                    ? `https://www.google.com/maps/dir/?api=1&origin=${currentPos.lat},${currentPos.lon}&destination=${encodeURIComponent(destination)}&travelmode=driving`
+                    : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(destination)}`;
+                  window.open(url, "_blank");
+                }}
+                style={{ background: "rgba(96,165,250,0.1)", border: "1px solid rgba(96,165,250,0.3)", color: "#60a5fa", padding: "7px 14px", borderRadius: "8px", fontWeight: 600, fontSize: "12px", cursor: "pointer", fontFamily: "inherit" }}
+              >
+                ↗ Open Full Map
+              </button>
+            </div>
+            <iframe
+              key={destination + (currentPos ? currentPos.lat : "")}
+              title="Google Maps Route"
+              src={
+                currentPos
+                  ? `https://maps.google.com/maps?saddr=${currentPos.lat},${currentPos.lon}&daddr=${encodeURIComponent(destination)}&output=embed`
+                  : `https://maps.google.com/maps?q=${encodeURIComponent(destination)}&output=embed`
+              }
+              width="100%"
+              height="420"
+              style={{ border: "none", borderRadius: "16px", display: "block" }}
+              loading="lazy"
+              allowFullScreen
+              referrerPolicy="no-referrer-when-downgrade"
+            />
+          </div>
+        )}
 
         {/* ── Route result ── */}
         {route && (
@@ -622,14 +748,18 @@ export default function NavigationPage() {
           <h3 style={{ ...s.sec, color: C.text }}>Quick Navigate To</h3>
           <div style={s.quickGrid}>
             {[
-              { label: "🏥 Hospital",       q: "hospital near me"      },
-              { label: "💊 Pharmacy",       q: "pharmacy near me"      },
-              { label: "🏧 ATM",            q: "ATM near me"           },
-              { label: "👮 Police Station", q: "police station near me"},
-              { label: "🚌 Bus Stop",       q: "bus stop near me"      },
-              { label: "🚉 Railway Station",q: "railway station near me"},
-              { label: "🛒 Supermarket",    q: "supermarket near me"   },
-              { label: "🏦 Bank",           q: "bank near me"          },
+              { label: "🏥 Hospital",        q: "hospital near me"       },
+              { label: "💊 Pharmacy",        q: "pharmacy near me"       },
+              { label: "🏧 ATM",             q: "ATM near me"            },
+              { label: "👮 Police Station",  q: "police station near me" },
+              { label: "🚌 Bus Stop",        q: "bus stop near me"       },
+              { label: "🚉 Railway Station", q: "railway station near me"},
+              { label: "🛒 Supermarket",     q: "supermarket near me"    },
+              { label: "🏦 Bank",            q: "bank near me"           },
+              { label: "⛽ Petrol Station",  q: "petrol station near me" },
+              { label: "✈️ Airport",         q: "airport near me"        },
+              { label: "🍽️ Restaurant",      q: "restaurant near me"     },
+              { label: "🏫 School",          q: "school near me"         },
             ].map(p => (
               <button
                 key={p.q}
