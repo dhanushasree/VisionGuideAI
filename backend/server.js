@@ -52,12 +52,16 @@ app.use(cors({
 /* ── Body parser: cap at 10 kb to block oversized payloads ── */
 app.use(express.json({ limit: "10kb" }));
 
-/* ── General rate limit: 100 req / 15 min per IP ── */
+/* ── General rate limit: 300 req / 15 min per IP ──────────────────────────────
+   /health and / are exempt — Render pings /health every ~30s and those calls
+   must never be throttled or the service gets marked as unhealthy.
+────────────────────────────────────────────────────────────────────────────── */
 app.use(rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 100,
+  max: 300,
   standardHeaders: true,
   legacyHeaders: false,
+  skip: (req) => req.path === "/health" || req.path === "/",
   message: { message: "Too many requests. Please try again later." },
 }));
 
