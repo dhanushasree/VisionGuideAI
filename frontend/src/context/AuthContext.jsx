@@ -2,7 +2,9 @@ import React, { createContext, useContext, useState, useEffect } from "react";
 import axios from "axios";
 
 const AuthContext = createContext(null);
-const authAPI = axios.create({ baseURL: "/api/auth", timeout: 12000 });
+
+const BASE = import.meta.env.VITE_API_URL ?? "";
+const authAPI = axios.create({ baseURL: `${BASE}/api/auth`, timeout: 12000 });
 
 export function AuthProvider({ children }) {
   const [user,    setUser]    = useState(null);
