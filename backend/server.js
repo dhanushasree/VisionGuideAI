@@ -20,18 +20,30 @@ dotenv.config();
 
 const app = express();
 
+/* ── Trust Render's reverse proxy so req.ip / rate-limiting sees real client IPs ── */
+app.set("trust proxy", 1);
+
 /* ── Security headers ── */
 app.use(helmet({ contentSecurityPolicy: false })); // CSP off — app uses inline styles
 
-/* ── CORS: allow localhost (http+https) + any LAN IP ── */
+/* ── CORS ──────────────────────────────────────────────────────────────────────────
+   Always allow localhost (dev) + any LAN IP.
+   In production, FRONTEND_URL must be set to the deployed Vercel URL so that
+   cross-origin requests from the live frontend are not blocked.
+────────────────────────────────────────────────────────────────────────────────── */
+const ALLOWED_ORIGINS = new Set([
+  "http://localhost:3000",
+  "http://localhost:5173",
+  ...(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : []),
+]);
+
 app.use(cors({
   origin: (origin, cb) => {
-    if (!origin) return cb(null, true);
-    if (
-      /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin) ||
-      /^https?:\/\/192\.168\.\d+\.\d+(:\d+)?$/.test(origin) ||
-      /^https?:\/\/10\.\d+\.\d+\.\d+(:\d+)?$/.test(origin)
-    ) return cb(null, true);
+    if (!origin) return cb(null, true); // server-to-server / curl
+    if (ALLOWED_ORIGINS.has(origin)) return cb(null, true);
+    if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) return cb(null, true);
+    if (/^https?:\/\/192\.168\.\d+\.\d+(:\d+)?$/.test(origin)) return cb(null, true);
+    if (/^https?:\/\/10\.\d+\.\d+\.\d+(:\d+)?$/.test(origin)) return cb(null, true);
     cb(new Error(`CORS: origin ${origin} not allowed`));
   },
   methods: ["GET", "POST", "PUT", "DELETE"],
@@ -70,7 +82,11 @@ app.get("/", (req, res) => {
 });
 
 app.get("/health", (req, res) => {
-  res.json({ status: "ok", message: "VisionGuide AI backend is healthy" });
+  res.json({
+    status:    "ok",
+    uptime:    Math.floor(process.uptime()),
+    timestamp: new Date().toISOString(),
+  });
 });
 
 /* ── Stricter rate limit for auth endpoints: 10 attempts / 15 min per IP ── */

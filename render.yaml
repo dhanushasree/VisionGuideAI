@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: visionguideai-backend
+    runtime: node
+    region: singapore
+    plan: free
+    rootDir: backend
+    buildCommand: npm install --omit=dev
+    startCommand: npm start
+    healthCheckPath: /health
+
+    envVars:
+      - key: NODE_ENV
+        value: production
+
+      # Set these in the Render dashboard — never commit real values here
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_KEY
+        sync: false
+      - key: API_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      # Set to your Vercel frontend URL, e.g. https://visionguideai.vercel.app
+      - key: FRONTEND_URL
+        sync: false
