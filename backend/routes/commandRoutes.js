@@ -77,6 +77,7 @@ router.get("/", async (req, res) => {
     const { data, error } = await supabase
       .from("commands")
       .select("*")
+      .eq("user_id", req.userId)
       .order("created_at", { ascending: false })
       .limit(100);
     if (error) return res.status(500).json({ message: error.message });
@@ -148,6 +149,7 @@ router.post("/", async (req, res) => {
       command_text:  commandText,
       response_text: responseText,
       command_type:  commandType,
+      user_id:       req.userId,
     }]).then(({ error }) => {
       if (error) console.error("[commands] log failed:", error.message);
     });
@@ -170,6 +172,7 @@ router.delete("/:id", async (req, res) => {
       .from("commands")
       .delete()
       .eq("id", req.params.id)
+      .eq("user_id", req.userId)
       .select();
     if (error) return res.status(500).json({ message: error.message });
     if (!data?.length) return res.status(404).json({ message: "Command not found" });

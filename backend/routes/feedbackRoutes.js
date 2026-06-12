@@ -8,6 +8,7 @@ router.get("/", asyncHandler(async (req, res) => {
   const { data, error } = await supabase
     .from("user_feedback")
     .select("*")
+    .eq("user_id", req.userId)
     .order("created_at", { ascending: false });
   if (error) return res.status(500).json({ message: error.message });
   res.json(data);
@@ -33,7 +34,7 @@ router.post("/", asyncHandler(async (req, res) => {
 
   const { data, error } = await supabase
     .from("user_feedback")
-    .insert([{ name: name?.trim() ?? null, feedback: feedback.trim(), rating: cleanRating }])
+    .insert([{ name: name?.trim() ?? null, feedback: feedback.trim(), rating: cleanRating, user_id: req.userId }])
     .select();
   if (error) return res.status(500).json({ message: error.message });
   res.status(201).json(data[0]);
@@ -44,6 +45,7 @@ router.delete("/:id", asyncHandler(async (req, res) => {
     .from("user_feedback")
     .delete()
     .eq("id", req.params.id)
+    .eq("user_id", req.userId)
     .select();
   if (error) return res.status(500).json({ message: error.message });
   if (!data || data.length === 0)

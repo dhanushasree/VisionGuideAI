@@ -545,7 +545,7 @@ export default function DashboardLayout({ children }) {
     else if (cmd.includes("setting") || cmd.includes("அமைப்பு") || cmd.includes("सेटिंग"))
       { navigate("/dashboard/settings");   say("nav.settings"); }
     else if (cmd.includes("sign out") || cmd.includes("logout") || cmd.includes("வெளியேறு"))
-      { signOut(); navigate("/"); say("nav.signout"); }
+      { signOut(); navigate("/signin"); say("nav.signout"); }
     else if (cmd.includes("light mode") || cmd.includes("வெளிர்"))
       { toggleTheme(); say("nav.light"); }
     else if (cmd.includes("dark mode") || cmd.includes("இருண்ட"))
@@ -722,7 +722,7 @@ export default function DashboardLayout({ children }) {
               </div>
             </div>
           )}
-          <button style={st.signOutBtn} onClick={() => { signOut(); navigate("/"); }}
+          <button style={st.signOutBtn} onClick={() => { signOut(); navigate("/signin"); }}
             aria-label={tr("btn.sign_out")} title={collapsed ? tr("btn.sign_out") : undefined}>
             <span>🚪</span>{!collapsed && <span>{tr("btn.sign_out")}</span>}
           </button>
