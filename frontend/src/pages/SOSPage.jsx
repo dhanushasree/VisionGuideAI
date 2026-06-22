@@ -4,7 +4,18 @@ import { useAccessibility } from "../context/AccessibilityContext";
 import API from "../api";
 
 export default function SOSPage() {
-  const { speak } = useAccessibility();
+  const { speak, settings } = useAccessibility();
+  const isDark = settings.theme === "dark";
+  const C = {
+    text:       isDark ? "#f9fafb"              : "#0f172a",
+    sub:        isDark ? "#9ca3af"              : "#64748b",
+    dim:        isDark ? "#6b7280"              : "#94a3b8",
+    cardBg:     isDark ? "#111827"              : "#ffffff",
+    cardBorder: isDark ? "#1f2937"              : "rgba(0,0,0,0.09)",
+    inputBg:    isDark ? "#1a2235"              : "rgba(0,0,0,0.04)",
+    btnBorder:  isDark ? "#374151"              : "rgba(0,0,0,0.12)",
+    cancelBg:   isDark ? "#374151"              : "rgba(0,0,0,0.08)",
+  };
   const [alerts, setAlerts] = useState([]);
   const [form, setForm] = useState({ message: "Emergency! I need help.", location: "" });
   const [loading, setLoading] = useState(true);
@@ -84,6 +95,31 @@ export default function SOSPage() {
 
   const deleteAlert = async (id) => {
     try { await API.delete(`/sos/${id}`); await fetchAlerts(); } catch (_) {}
+  };
+
+  const s = {
+    grid:         { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px", alignItems: "start" },
+    sosMainCard:  { textAlign: "center", padding: "36px 24px" },
+    sosCardTitle: { fontSize: "20px", fontWeight: 800, color: C.text, marginBottom: "8px" },
+    sosHint:      { color: C.sub, fontSize: "14px", marginBottom: "28px", lineHeight: 1.6 },
+    bigSosBtn:    { display: "flex", flexDirection: "column", alignItems: "center", gap: "10px", width: "180px", height: "180px", borderRadius: "50%", background: "linear-gradient(135deg,#dc2626,#ef4444)", color: "white", border: "6px solid rgba(239,68,68,0.3)", cursor: "pointer", fontSize: "52px", fontWeight: 900, margin: "0 auto", fontFamily: "Inter,Arial,sans-serif", boxShadow: "0 0 40px rgba(239,68,68,0.3)", transition: "transform 0.2s" },
+    countdownBox: { textAlign: "center", padding: "20px 0" },
+    countdownNum: { fontSize: "72px", fontWeight: 900, color: "#ef4444", lineHeight: 1 },
+    cancelBtn:    { background: C.cancelBg, color: C.text, border: `1px solid ${C.btnBorder}`, padding: "14px 32px", borderRadius: "12px", fontWeight: 700, fontSize: "16px", cursor: "pointer", fontFamily: "Inter,Arial,sans-serif" },
+    sectionTitle: { fontSize: "17px", fontWeight: 700, color: C.text, marginBottom: "20px" },
+    locationRow:  { display: "flex", gap: "10px", alignItems: "stretch" },
+    geoBtn:       { background: C.inputBg, border: `1px solid ${C.btnBorder}`, color: C.sub, padding: "14px 16px", borderRadius: "10px", cursor: "pointer", fontSize: "14px", fontFamily: "Inter,Arial,sans-serif", whiteSpace: "nowrap", fontWeight: 600 },
+    submitSosBtn: { width: "100%", background: "#dc2626", color: "#fff", border: "none", padding: "14px", borderRadius: "12px", fontWeight: 700, fontSize: "16px", cursor: "pointer", fontFamily: "Inter,Arial,sans-serif" },
+    countBadge:   { background: "rgba(239,68,68,0.15)", color: "#f87171", padding: "2px 10px", borderRadius: "12px", fontSize: "14px" },
+    alertCard:    { background: C.cardBg, border: `1px solid ${C.cardBorder}`, borderLeft: "4px solid #ef4444", borderRadius: "14px", padding: "18px", marginBottom: "14px" },
+    alertTop:     { display: "flex", gap: "14px", alignItems: "flex-start" },
+    alertIcon:    { fontSize: "24px", flexShrink: 0 },
+    alertInfo:    { flex: 1 },
+    alertMsg:     { fontSize: "15px", fontWeight: 600, color: C.text, marginBottom: "6px" },
+    alertLocation:{ fontSize: "13px", color: C.sub, marginBottom: "8px" },
+    alertMeta:    { display: "flex", gap: "12px", alignItems: "center" },
+    sentBadge:    { background: "rgba(239,68,68,0.1)", color: "#f87171", padding: "2px 12px", borderRadius: "10px", fontSize: "12px", fontWeight: 700 },
+    deleteBtn:    { background: "transparent", border: "none", color: C.dim, cursor: "pointer", fontSize: "18px", padding: "4px", flexShrink: 0 },
   };
 
   return (
@@ -181,27 +217,3 @@ export default function SOSPage() {
   );
 }
 
-const s = {
-  grid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px", alignItems: "start" },
-  sosMainCard: { textAlign: "center", padding: "36px 24px" },
-  sosCardTitle: { fontSize: "20px", fontWeight: 800, color: "#f9fafb", marginBottom: "8px" },
-  sosHint: { color: "#9ca3af", fontSize: "14px", marginBottom: "28px", lineHeight: 1.6 },
-  bigSosBtn: { display: "flex", flexDirection: "column", alignItems: "center", gap: "10px", width: "180px", height: "180px", borderRadius: "50%", background: "linear-gradient(135deg,#dc2626,#ef4444)", color: "white", border: "6px solid rgba(239,68,68,0.3)", cursor: "pointer", fontSize: "52px", fontWeight: 900, margin: "0 auto", fontFamily: "Inter,Arial,sans-serif", boxShadow: "0 0 40px rgba(239,68,68,0.3)", transition: "transform 0.2s" },
-  countdownBox: { textAlign: "center", padding: "20px 0" },
-  countdownNum: { fontSize: "72px", fontWeight: 900, color: "#ef4444", lineHeight: 1 },
-  cancelBtn: { background: "#374151", color: "#f9fafb", border: "none", padding: "14px 32px", borderRadius: "12px", fontWeight: 700, fontSize: "16px", cursor: "pointer", fontFamily: "Inter,Arial,sans-serif" },
-  sectionTitle: { fontSize: "17px", fontWeight: 700, color: "#f9fafb", marginBottom: "20px" },
-  locationRow: { display: "flex", gap: "10px", alignItems: "stretch" },
-  geoBtn: { background: "#1a2235", border: "1px solid #374151", color: "#9ca3af", padding: "14px 16px", borderRadius: "10px", cursor: "pointer", fontSize: "14px", fontFamily: "Inter,Arial,sans-serif", whiteSpace: "nowrap", fontWeight: 600 },
-  submitSosBtn: { width: "100%", background: "#dc2626", color: "#fff", border: "none", padding: "14px", borderRadius: "12px", fontWeight: 700, fontSize: "16px", cursor: "pointer", fontFamily: "Inter,Arial,sans-serif" },
-  countBadge: { background: "rgba(239,68,68,0.15)", color: "#f87171", padding: "2px 10px", borderRadius: "12px", fontSize: "14px" },
-  alertCard: { background: "#111827", border: "1px solid #1f2937", borderLeft: "4px solid #ef4444", borderRadius: "14px", padding: "18px", marginBottom: "14px" },
-  alertTop: { display: "flex", gap: "14px", alignItems: "flex-start" },
-  alertIcon: { fontSize: "24px", flexShrink: 0 },
-  alertInfo: { flex: 1 },
-  alertMsg: { fontSize: "15px", fontWeight: 600, color: "#f9fafb", marginBottom: "6px" },
-  alertLocation: { fontSize: "13px", color: "#9ca3af", marginBottom: "8px" },
-  alertMeta: { display: "flex", gap: "12px", alignItems: "center" },
-  sentBadge: { background: "rgba(239,68,68,0.1)", color: "#f87171", padding: "2px 12px", borderRadius: "10px", fontSize: "12px", fontWeight: 700 },
-  deleteBtn: { background: "transparent", border: "none", color: "#6b7280", cursor: "pointer", fontSize: "18px", padding: "4px", flexShrink: 0 },
-};

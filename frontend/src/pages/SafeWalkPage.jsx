@@ -6,7 +6,18 @@ import API from "../api";
 const CHECK_IN_OPTIONS = [5, 10, 15, 20, 30];
 
 export default function SafeWalkPage() {
-  const { speak: speakA } = useAccessibility();
+  const { speak: speakA, settings } = useAccessibility();
+  const isDark = settings.theme === "dark";
+  const C = {
+    text:       isDark ? "#f9fafb"              : "#0f172a",
+    sub:        isDark ? "#9ca3af"              : "#64748b",
+    dim:        isDark ? "#6b7280"              : "#94a3b8",
+    border:     isDark ? "#374151"              : "rgba(0,0,0,0.12)",
+    inputBg:    isDark ? "#0a0f1e"              : "rgba(0,0,0,0.04)",
+    cardBg:     isDark ? "#111827"              : "#ffffff",
+    cardBorder: isDark ? "#1f2937"              : "rgba(0,0,0,0.09)",
+    svgTrack:   isDark ? "#1f2937"              : "#e5e7eb",
+  };
   const [active, setActive] = useState(false);
   const [interval, setIntervalMin] = useState(10);
   const [secondsLeft, setSecondsLeft] = useState(0);
@@ -137,6 +148,41 @@ export default function SafeWalkPage() {
   const isUrgent = secondsLeft > 0 && secondsLeft <= 30;
   const mapsUrl = location ? `https://www.google.com/maps?q=${location.lat},${location.lng}` : null;
 
+  const s = {
+    grid:            { display: "grid", gridTemplateColumns: "1fr 300px", gap: "24px", alignItems: "start" },
+    main:            { display: "flex", flexDirection: "column", gap: "20px" },
+    statusBanner:    { borderRadius: "12px", padding: "14px 20px", fontWeight: 700, fontSize: "15px", textAlign: "center" },
+    bannerYellow:    { background: "rgba(250,204,21,0.1)", border: "1px solid rgba(250,204,21,0.3)", color: "#facc15" },
+    bannerGreen:     { background: "rgba(34,197,94,0.1)",  border: "1px solid rgba(34,197,94,0.3)",  color: "#22c55e" },
+    bannerRed:       { background: "rgba(239,68,68,0.1)",  border: "1px solid rgba(239,68,68,0.3)",  color: "#ef4444" },
+    timerCard:       { background: C.cardBg, border: `1px solid ${C.cardBorder}`, borderRadius: "20px", padding: "40px 24px", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center" },
+    timerCenter:     { position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", textAlign: "center" },
+    timerText:       { fontSize: "42px", fontWeight: 900, fontFamily: "Inter,Arial,sans-serif", lineHeight: 1 },
+    timerLabel:      { fontSize: "13px", color: C.dim, marginTop: "4px", fontWeight: 600 },
+    bigBtns:         { display: "flex", gap: "16px", marginBottom: "20px", width: "100%" },
+    safeBtn:         { flex: 1, background: "linear-gradient(135deg,#22c55e,#4ade80)", color: "#000", border: "none", padding: "18px", borderRadius: "14px", fontWeight: 800, fontSize: "18px", cursor: "pointer", fontFamily: "Inter,Arial,sans-serif" },
+    sosBtn:          { flex: 1, background: "linear-gradient(135deg,#ef4444,#f87171)", color: "#fff", border: "none", padding: "18px", borderRadius: "14px", fontWeight: 800, fontSize: "18px", cursor: "pointer", fontFamily: "Inter,Arial,sans-serif" },
+    stopWalkBtn:     { background: "transparent", border: `1px solid ${C.border}`, color: C.dim, padding: "10px 24px", borderRadius: "10px", cursor: "pointer", fontSize: "14px", fontFamily: "Inter,Arial,sans-serif" },
+    sectionTitle:    { fontSize: "16px", fontWeight: 700, color: C.text, marginBottom: "16px" },
+    intervalRow:     { display: "flex", gap: "10px", flexWrap: "wrap" },
+    intervalBtn:     { background: C.inputBg, border: `1.5px solid ${C.border}`, color: C.sub, padding: "10px 18px", borderRadius: "10px", cursor: "pointer", fontWeight: 600, fontSize: "14px", fontFamily: "Inter,Arial,sans-serif", transition: "all 0.15s" },
+    intervalBtnActive: { background: "rgba(250,204,21,0.1)", borderColor: "#facc15", color: "#facc15" },
+    gpsBox:          { background: C.inputBg, borderRadius: "12px", padding: "14px 16px", marginBottom: "20px" },
+    gpsRow:          { display: "flex", alignItems: "center", gap: "10px" },
+    gpsDot:          (on) => ({ width: "10px", height: "10px", borderRadius: "50%", background: on ? "#22c55e" : C.border, flexShrink: 0, boxShadow: on ? "0 0 8px #22c55e" : "none" }),
+    refreshGpsBtn:   { background: "transparent", border: `1px solid ${C.border}`, color: C.sub, padding: "4px 10px", borderRadius: "6px", cursor: "pointer", fontSize: "12px", fontFamily: "Inter,Arial,sans-serif", marginLeft: "auto" },
+    startBtn:        { width: "100%", background: "linear-gradient(135deg,#facc15,#fde68a)", color: "#000", border: "none", padding: "16px", borderRadius: "14px", fontWeight: 800, fontSize: "17px", cursor: "pointer", fontFamily: "Inter,Arial,sans-serif" },
+    steps:           { display: "flex", flexDirection: "column", gap: "14px" },
+    stepRow:         { display: "flex", alignItems: "flex-start", gap: "12px" },
+    stepIcon:        { fontSize: "22px", flexShrink: 0 },
+    coordBox:        { background: C.inputBg, borderRadius: "10px", padding: "14px 16px", marginBottom: "14px" },
+    coordRow:        { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "4px 0" },
+    coordLabel:      { fontSize: "12px", color: C.dim, fontWeight: 600 },
+    coordVal:        { fontSize: "13px", color: C.text, fontWeight: 700, fontFamily: "monospace" },
+    mapsLink:        { display: "block", textAlign: "center", background: "rgba(96,165,250,0.08)", border: "1px solid rgba(96,165,250,0.2)", color: "#60a5fa", padding: "10px", borderRadius: "10px", textDecoration: "none", fontSize: "14px", fontWeight: 600 },
+    checkInRow:      { display: "flex", alignItems: "center", gap: "12px", padding: "10px 0", borderBottom: `1px solid ${C.cardBorder}` },
+  };
+
   return (
     <DashboardLayout>
       <div className="fade-in">
@@ -163,7 +209,7 @@ export default function SafeWalkPage() {
               <div style={s.timerCard} aria-live="polite" aria-label={`${formatTime(secondsLeft)} remaining to check in`}>
                 <div style={{ position: "relative", display: "inline-flex", marginBottom: "24px" }}>
                   <svg width="200" height="200" style={{ transform: "rotate(-90deg)" }}>
-                    <circle cx="100" cy="100" r="88" fill="none" stroke="#1f2937" strokeWidth="14" />
+                    <circle cx="100" cy="100" r="88" fill="none" stroke={C.svgTrack} strokeWidth="14" />
                     <circle
                       cx="100" cy="100" r="88" fill="none"
                       stroke={isUrgent ? "#ef4444" : "#facc15"}
@@ -230,13 +276,13 @@ export default function SafeWalkPage() {
                 <div style={s.gpsBox}>
                   <div style={s.gpsRow}>
                     <span style={s.gpsDot(!!location)} />
-                    <span style={{ fontSize: "14px", color: location ? "#34d399" : "#6b7280", fontWeight: 600 }}>
+                    <span style={{ fontSize: "14px", color: location ? "#34d399" : C.dim, fontWeight: 600 }}>
                       {location ? `GPS locked (±${location.accuracy}m)` : "GPS not locked"}
                     </span>
                     <button onClick={getLocation} style={s.refreshGpsBtn}>↻ Refresh</button>
                   </div>
                   {location && (
-                    <div style={{ fontSize: "12px", color: "#6b7280", marginTop: "6px" }}>
+                    <div style={{ fontSize: "12px", color: C.dim, marginTop: "6px" }}>
                       {location.lat.toFixed(5)}, {location.lng.toFixed(5)}
                       {mapsUrl && (
                         <a href={mapsUrl} target="_blank" rel="noreferrer" style={{ color: "#60a5fa", marginLeft: "12px" }}>
@@ -268,7 +314,7 @@ export default function SafeWalkPage() {
                   ].map((step, i) => (
                     <div key={i} style={s.stepRow}>
                       <span style={s.stepIcon}>{step.icon}</span>
-                      <span style={{ fontSize: "14px", color: "#d1d5db", lineHeight: 1.5 }}>{step.text}</span>
+                      <span style={{ fontSize: "14px", color: C.text, lineHeight: 1.5 }}>{step.text}</span>
                     </div>
                   ))}
                 </div>
@@ -295,7 +341,7 @@ export default function SafeWalkPage() {
                   )}
                 </>
               ) : (
-                <div style={{ color: "#6b7280", fontSize: "14px", textAlign: "center", padding: "20px 0" }}>
+                <div style={{ color: C.dim, fontSize: "14px", textAlign: "center", padding: "20px 0" }}>
                   {locationError || "Fetching GPS location..."}
                   <br />
                   <button onClick={getLocation} style={{ ...s.refreshGpsBtn, marginTop: "12px" }}>↻ Retry</button>
@@ -307,7 +353,7 @@ export default function SafeWalkPage() {
             <div className="card">
               <h3 style={s.sectionTitle}>Check-in Log</h3>
               {checkIns.length === 0 ? (
-                <p style={{ color: "#4b5563", fontSize: "14px", textAlign: "center", padding: "16px 0" }}>
+                <p style={{ color: C.dim, fontSize: "14px", textAlign: "center", padding: "16px 0" }}>
                   No check-ins yet this session
                 </p>
               ) : (
@@ -319,7 +365,7 @@ export default function SafeWalkPage() {
                         <div style={{ fontSize: "13px", fontWeight: 700, color: c.type === "safe" ? "#22c55e" : "#ef4444" }}>
                           {c.type === "safe" ? "Checked in safe" : "SOS sent"}
                         </div>
-                        <div style={{ fontSize: "12px", color: "#6b7280" }}>{c.time}</div>
+                        <div style={{ fontSize: "12px", color: C.dim }}>{c.time}</div>
                       </div>
                     </div>
                   ))}
@@ -333,37 +379,3 @@ export default function SafeWalkPage() {
   );
 }
 
-const s = {
-  grid: { display: "grid", gridTemplateColumns: "1fr 300px", gap: "24px", alignItems: "start" },
-  main: { display: "flex", flexDirection: "column", gap: "20px" },
-  statusBanner: { borderRadius: "12px", padding: "14px 20px", fontWeight: 700, fontSize: "15px", textAlign: "center" },
-  bannerYellow: { background: "rgba(250,204,21,0.1)", border: "1px solid rgba(250,204,21,0.3)", color: "#facc15" },
-  bannerGreen:  { background: "rgba(34,197,94,0.1)",  border: "1px solid rgba(34,197,94,0.3)",  color: "#22c55e" },
-  bannerRed:    { background: "rgba(239,68,68,0.1)",   border: "1px solid rgba(239,68,68,0.3)",   color: "#ef4444" },
-  timerCard: { background: "#111827", border: "1px solid #1f2937", borderRadius: "20px", padding: "40px 24px", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center" },
-  timerCenter: { position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", textAlign: "center" },
-  timerText: { fontSize: "42px", fontWeight: 900, fontFamily: "Inter,Arial,sans-serif", lineHeight: 1 },
-  timerLabel: { fontSize: "13px", color: "#6b7280", marginTop: "4px", fontWeight: 600 },
-  bigBtns: { display: "flex", gap: "16px", marginBottom: "20px", width: "100%" },
-  safeBtn: { flex: 1, background: "linear-gradient(135deg,#22c55e,#4ade80)", color: "#000", border: "none", padding: "18px", borderRadius: "14px", fontWeight: 800, fontSize: "18px", cursor: "pointer", fontFamily: "Inter,Arial,sans-serif" },
-  sosBtn:  { flex: 1, background: "linear-gradient(135deg,#ef4444,#f87171)", color: "#fff", border: "none", padding: "18px", borderRadius: "14px", fontWeight: 800, fontSize: "18px", cursor: "pointer", fontFamily: "Inter,Arial,sans-serif" },
-  stopWalkBtn: { background: "transparent", border: "1px solid #374151", color: "#6b7280", padding: "10px 24px", borderRadius: "10px", cursor: "pointer", fontSize: "14px", fontFamily: "Inter,Arial,sans-serif" },
-  sectionTitle: { fontSize: "16px", fontWeight: 700, color: "#f9fafb", marginBottom: "16px" },
-  intervalRow: { display: "flex", gap: "10px", flexWrap: "wrap" },
-  intervalBtn: { background: "#0a0f1e", border: "1.5px solid #374151", color: "#9ca3af", padding: "10px 18px", borderRadius: "10px", cursor: "pointer", fontWeight: 600, fontSize: "14px", fontFamily: "Inter,Arial,sans-serif", transition: "all 0.15s" },
-  intervalBtnActive: { background: "rgba(250,204,21,0.1)", borderColor: "#facc15", color: "#facc15" },
-  gpsBox: { background: "#0a0f1e", borderRadius: "12px", padding: "14px 16px", marginBottom: "20px" },
-  gpsRow: { display: "flex", alignItems: "center", gap: "10px" },
-  gpsDot: (active) => ({ width: "10px", height: "10px", borderRadius: "50%", background: active ? "#22c55e" : "#374151", flexShrink: 0, boxShadow: active ? "0 0 8px #22c55e" : "none" }),
-  refreshGpsBtn: { background: "transparent", border: "1px solid #374151", color: "#9ca3af", padding: "4px 10px", borderRadius: "6px", cursor: "pointer", fontSize: "12px", fontFamily: "Inter,Arial,sans-serif", marginLeft: "auto" },
-  startBtn: { width: "100%", background: "linear-gradient(135deg,#facc15,#fde68a)", color: "#000", border: "none", padding: "16px", borderRadius: "14px", fontWeight: 800, fontSize: "17px", cursor: "pointer", fontFamily: "Inter,Arial,sans-serif" },
-  steps: { display: "flex", flexDirection: "column", gap: "14px" },
-  stepRow: { display: "flex", alignItems: "flex-start", gap: "12px" },
-  stepIcon: { fontSize: "22px", flexShrink: 0 },
-  coordBox: { background: "#0a0f1e", borderRadius: "10px", padding: "14px 16px", marginBottom: "14px" },
-  coordRow: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "4px 0" },
-  coordLabel: { fontSize: "12px", color: "#6b7280", fontWeight: 600 },
-  coordVal: { fontSize: "13px", color: "#f9fafb", fontWeight: 700, fontFamily: "monospace" },
-  mapsLink: { display: "block", textAlign: "center", background: "rgba(96,165,250,0.08)", border: "1px solid rgba(96,165,250,0.2)", color: "#60a5fa", padding: "10px", borderRadius: "10px", textDecoration: "none", fontSize: "14px", fontWeight: 600 },
-  checkInRow: { display: "flex", alignItems: "center", gap: "12px", padding: "10px 0", borderBottom: "1px solid #1f2937" },
-};

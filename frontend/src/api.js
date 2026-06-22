@@ -23,4 +23,16 @@ API.interceptors.request.use((config) => {
   return config;
 });
 
+/* Auto sign-out on 401 — handles expired JWT after 30 days */
+API.interceptors.response.use(
+  (res) => res,
+  (err) => {
+    if (err.response?.status === 401) {
+      localStorage.removeItem("visionguide_user");
+      window.location.href = "/signin";
+    }
+    return Promise.reject(err);
+  }
+);
+
 export default API;

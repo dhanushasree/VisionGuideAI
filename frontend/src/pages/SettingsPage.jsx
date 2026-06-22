@@ -185,6 +185,7 @@ export default function SettingsPage() {
           <div className="theme-row">
             <ThemeOption
               active={settings.theme === "dark"}
+              isDark={isDark}
               icon="🌙" title="Dark Mode"
               desc="Dark backgrounds, green accents"
               onClick={() => { update("theme","dark"); speak("Dark mode activated."); }}
@@ -192,6 +193,7 @@ export default function SettingsPage() {
             />
             <ThemeOption
               active={settings.theme === "light"}
+              isDark={isDark}
               icon="☀️" title="Light Mode"
               desc="Light backgrounds, clean look"
               onClick={() => { update("theme","light"); speak("Light mode activated."); }}
@@ -316,21 +318,21 @@ function Toggle({ on, onToggle, color }) {
   );
 }
 
-function ThemeOption({ active, icon, title, desc, onClick, color }) {
+function ThemeOption({ active, isDark, icon, title, desc, onClick, color }) {
   return (
     <button
       onClick={onClick}
       style={{
         flex: 1, padding: "18px", borderRadius: "12px", cursor: "pointer",
-        background: active ? `${color}18` : "rgba(255,255,255,0.04)",
-        border: active ? `2px solid ${color}` : "2px solid rgba(255,255,255,0.08)",
+        background: active ? `${color}18` : isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)",
+        border: active ? `2px solid ${color}` : isDark ? "2px solid rgba(255,255,255,0.08)" : "2px solid rgba(0,0,0,0.1)",
         display: "flex", flexDirection: "column", alignItems: "center", gap: "8px",
         fontFamily: "inherit", transition: "all 0.15s",
       }}
     >
       <span style={{ fontSize: "32px" }}>{icon}</span>
-      <span style={{ fontWeight: 700, fontSize: "14px", color: active ? color : "#d1d5db" }}>{title}</span>
-      <span style={{ fontSize: "12px", color: "#6b7280" }}>{desc}</span>
+      <span style={{ fontWeight: 700, fontSize: "14px", color: active ? color : isDark ? "#d1d5db" : "#334155" }}>{title}</span>
+      <span style={{ fontSize: "12px", color: isDark ? "#6b7280" : "#94a3b8" }}>{desc}</span>
       {active && <span style={{ fontSize: "11px", color, fontWeight: 700 }}>✅ Active</span>}
     </button>
   );
