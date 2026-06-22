@@ -16,7 +16,18 @@ const typeLabels = {
 };
 
 export default function CommandHistoryPage() {
-  const { speak } = useAccessibility();
+  const { speak, settings } = useAccessibility();
+  const isDark = settings.theme === "dark";
+  const C = {
+    text:        isDark ? "#f9fafb"              : "#0f172a",
+    sub:         isDark ? "#9ca3af"              : "#64748b",
+    dim:         isDark ? "#6b7280"              : "#94a3b8",
+    cardBg:      isDark ? "#111827"              : "#ffffff",
+    cardBorder:  isDark ? "#1f2937"              : "rgba(0,0,0,0.09)",
+    inputBg:     isDark ? "#111827"              : "rgba(0,0,0,0.04)",
+    inputBorder: isDark ? "#374151"              : "rgba(0,0,0,0.14)",
+    cancelBg:    isDark ? "#374151"              : "rgba(0,0,0,0.08)",
+  };
   const [commands, setCommands] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("all");
@@ -63,6 +74,34 @@ export default function CommandHistoryPage() {
   const stats = Object.entries(typeLabels).map(([key, val]) => ({
     type: key, count: commands.filter((c) => c.commandType === key).length, ...val,
   })).filter((s) => s.count > 0);
+
+  const s = {
+    clearBtn:   { background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.25)", color: "#f87171", padding: "10px 18px", borderRadius: "10px", cursor: "pointer", fontSize: "14px", fontWeight: 600, fontFamily: "Inter,Arial,sans-serif" },
+    confirmYes: { background: "#ef4444", color: "#fff", border: "none", padding: "8px 14px", borderRadius: "8px", cursor: "pointer", fontWeight: 700, fontSize: "13px", fontFamily: "Inter,Arial,sans-serif" },
+    confirmNo:  { background: C.cancelBg, color: C.text, border: "none", padding: "8px 14px", borderRadius: "8px", cursor: "pointer", fontWeight: 700, fontSize: "13px", fontFamily: "Inter,Arial,sans-serif" },
+    statsGrid:  { display: "flex", gap: "14px", marginBottom: "28px", flexWrap: "wrap" },
+    totalCard:  { background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.2)", borderRadius: "14px", padding: "18px 24px", textAlign: "center", minWidth: "110px" },
+    totalNum:   { fontSize: "36px", fontWeight: 900, color: "#22c55e", marginBottom: "4px" },
+    totalLabel: { fontSize: "12px", color: C.sub, fontWeight: 600 },
+    statCard:   { background: C.cardBg, border: `1px solid ${C.cardBorder}`, borderRadius: "14px", padding: "18px 24px", textAlign: "center", minWidth: "100px" },
+    statNum:    { fontSize: "28px", fontWeight: 800, marginBottom: "4px" },
+    statLabel:  { fontSize: "12px", color: C.sub, fontWeight: 600 },
+    filterRow:  { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px", gap: "16px", flexWrap: "wrap" },
+    filterBtns: { display: "flex", gap: "8px", flexWrap: "wrap" },
+    filterBtn:  { background: C.cardBg, border: `1px solid ${C.inputBorder}`, color: C.sub, padding: "8px 16px", borderRadius: "20px", cursor: "pointer", fontSize: "13px", fontWeight: 600, fontFamily: "Inter,Arial,sans-serif", transition: "all 0.15s" },
+    searchInput:{ padding: "10px 16px", background: C.inputBg, border: `1px solid ${C.inputBorder}`, borderRadius: "10px", color: C.text, fontSize: "14px", width: "220px", fontFamily: "Inter,Arial,sans-serif", outline: "none" },
+    list:       { display: "flex", flexDirection: "column", gap: "14px" },
+    cmdCard:    { background: C.cardBg, border: `1px solid ${C.cardBorder}`, borderRadius: "14px", padding: "18px 20px" },
+    cmdTop:     { display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "10px", gap: "16px" },
+    cmdLeft:    { display: "flex", gap: "12px", alignItems: "center" },
+    cmdIcon:    { fontSize: "20px", flexShrink: 0 },
+    cmdText:    { fontSize: "16px", fontWeight: 600, color: C.text },
+    typeBadge:  { padding: "4px 12px", borderRadius: "12px", fontSize: "12px", fontWeight: 700, whiteSpace: "nowrap" },
+    replayBtn:  { background: "transparent", border: "none", fontSize: "18px", cursor: "pointer", padding: "4px" },
+    deleteBtn:  { background: "transparent", border: "none", fontSize: "16px", cursor: "pointer", padding: "4px", color: C.dim },
+    cmdReply:   { fontSize: "14px", lineHeight: 1.6, paddingLeft: "32px", marginBottom: "8px" },
+    cmdTime:    { fontSize: "12px", color: C.dim, paddingLeft: "32px" },
+  };
 
   return (
     <DashboardLayout>
@@ -147,7 +186,7 @@ export default function CommandHistoryPage() {
                   </div>
                   <div style={s.cmdReply}>
                     <span style={{ color: "#22c55e", fontWeight: 600 }}>AI: </span>
-                    <span style={{ color: "#9ca3af" }}>{cmd.responseText}</span>
+                    <span style={{ color: C.sub }}>{cmd.responseText}</span>
                   </div>
                   {cmd.createdAt && (
                     <div style={s.cmdTime}>{new Date(cmd.createdAt).toLocaleString()}</div>
@@ -162,30 +201,3 @@ export default function CommandHistoryPage() {
   );
 }
 
-const s = {
-  clearBtn: { background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.25)", color: "#f87171", padding: "10px 18px", borderRadius: "10px", cursor: "pointer", fontSize: "14px", fontWeight: 600, fontFamily: "Inter,Arial,sans-serif" },
-  confirmYes: { background: "#ef4444", color: "#fff", border: "none", padding: "8px 14px", borderRadius: "8px", cursor: "pointer", fontWeight: 700, fontSize: "13px", fontFamily: "Inter,Arial,sans-serif" },
-  confirmNo: { background: "#374151", color: "#f9fafb", border: "none", padding: "8px 14px", borderRadius: "8px", cursor: "pointer", fontWeight: 700, fontSize: "13px", fontFamily: "Inter,Arial,sans-serif" },
-  statsGrid: { display: "flex", gap: "14px", marginBottom: "28px", flexWrap: "wrap" },
-  totalCard: { background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.2)", borderRadius: "14px", padding: "18px 24px", textAlign: "center", minWidth: "110px" },
-  totalNum: { fontSize: "36px", fontWeight: 900, color: "#22c55e", marginBottom: "4px" },
-  totalLabel: { fontSize: "12px", color: "#9ca3af", fontWeight: 600 },
-  statCard: { background: "#111827", border: "1px solid #1f2937", borderRadius: "14px", padding: "18px 24px", textAlign: "center", minWidth: "100px" },
-  statNum: { fontSize: "28px", fontWeight: 800, marginBottom: "4px" },
-  statLabel: { fontSize: "12px", color: "#9ca3af", fontWeight: 600 },
-  filterRow: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px", gap: "16px", flexWrap: "wrap" },
-  filterBtns: { display: "flex", gap: "8px", flexWrap: "wrap" },
-  filterBtn: { background: "#111827", border: "1px solid #374151", color: "#9ca3af", padding: "8px 16px", borderRadius: "20px", cursor: "pointer", fontSize: "13px", fontWeight: 600, fontFamily: "Inter,Arial,sans-serif", transition: "all 0.15s" },
-  searchInput: { padding: "10px 16px", background: "#111827", border: "1px solid #374151", borderRadius: "10px", color: "#f9fafb", fontSize: "14px", width: "220px", fontFamily: "Inter,Arial,sans-serif", outline: "none" },
-  list: { display: "flex", flexDirection: "column", gap: "14px" },
-  cmdCard: { background: "#111827", border: "1px solid #1f2937", borderRadius: "14px", padding: "18px 20px" },
-  cmdTop: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "10px", gap: "16px" },
-  cmdLeft: { display: "flex", gap: "12px", alignItems: "center" },
-  cmdIcon: { fontSize: "20px", flexShrink: 0 },
-  cmdText: { fontSize: "16px", fontWeight: 600, color: "#f9fafb" },
-  typeBadge: { padding: "4px 12px", borderRadius: "12px", fontSize: "12px", fontWeight: 700, whiteSpace: "nowrap" },
-  replayBtn: { background: "transparent", border: "none", fontSize: "18px", cursor: "pointer", padding: "4px" },
-  deleteBtn: { background: "transparent", border: "none", fontSize: "16px", cursor: "pointer", padding: "4px", color: "#6b7280" },
-  cmdReply: { fontSize: "14px", lineHeight: 1.6, paddingLeft: "32px", marginBottom: "8px" },
-  cmdTime: { fontSize: "12px", color: "#4b5563", paddingLeft: "32px" },
-};

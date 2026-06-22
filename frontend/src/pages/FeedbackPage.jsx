@@ -6,7 +6,18 @@ import API from "../api";
 
 export default function FeedbackPage() {
   const { user } = useAuth();
-  const { speak } = useAccessibility();
+  const { speak, settings } = useAccessibility();
+  const isDark = settings.theme === "dark";
+  const C = {
+    text:        isDark ? "#f9fafb"              : "#0f172a",
+    sub:         isDark ? "#9ca3af"              : "#64748b",
+    dim:         isDark ? "#6b7280"              : "#94a3b8",
+    cardBg:      isDark ? "#111827"              : "#ffffff",
+    cardBorder:  isDark ? "#1f2937"              : "rgba(0,0,0,0.09)",
+    darkBg:      isDark ? "#0a0f1e"              : "rgba(0,0,0,0.04)",
+    starOff:     isDark ? "#374151"              : "#d1d5db",
+    cancelBg:    isDark ? "#374151"              : "rgba(0,0,0,0.08)",
+  };
   const [feedbacks, setFeedbacks] = useState([]);
   const [form, setForm] = useState({ name: user?.name || "", feedback: "", rating: 5 });
   const [loading, setLoading] = useState(true);
@@ -63,7 +74,7 @@ export default function FeedbackPage() {
           }}
           style={{
             fontSize: `${size}px`,
-            color: star <= value ? "#facc15" : "#374151",
+            color: star <= value ? "#facc15" : C.starOff,
             background: "transparent", border: "none", cursor: "pointer",
             padding: "2px", transition: "transform 0.1s",
             outline: star === value ? "2px solid #facc15" : "none",
@@ -80,7 +91,7 @@ export default function FeedbackPage() {
   const Stars = ({ value }) => (
     <div style={{ display: "flex", gap: "4px" }}>
       {[1,2,3,4,5].map((s) => (
-        <span key={s} style={{ fontSize: "18px", color: s <= value ? "#facc15" : "#374151" }}>★</span>
+        <span key={s} style={{ fontSize: "18px", color: s <= value ? "#facc15" : C.starOff }}>★</span>
       ))}
     </div>
   );
@@ -88,6 +99,25 @@ export default function FeedbackPage() {
   const avgRating = feedbacks.length
     ? (feedbacks.reduce((sum, f) => sum + (f.rating || 0), 0) / feedbacks.length).toFixed(1)
     : "—";
+
+  const s = {
+    grid:         { display: "grid", gridTemplateColumns: "380px 1fr", gap: "24px", alignItems: "start" },
+    panelTitle:   { fontSize: "16px", fontWeight: 700, color: C.text, marginBottom: "20px" },
+    submitBtn:    { width: "100%", background: "#fb923c", color: "#000", border: "none", padding: "14px", borderRadius: "10px", fontWeight: 700, fontSize: "16px", cursor: "pointer", fontFamily: "Inter,Arial,sans-serif" },
+    statRow:      { display: "flex", gap: "16px" },
+    statBox:      { flex: 1, textAlign: "center", padding: "16px", background: C.darkBg, borderRadius: "12px" },
+    statNum:      { fontSize: "32px", fontWeight: 900, color: C.text, marginBottom: "4px" },
+    statLabel:    { fontSize: "12px", color: C.dim, fontWeight: 600 },
+    countBadge:   { background: "rgba(251,146,60,0.15)", color: "#fb923c", padding: "2px 10px", borderRadius: "12px", fontSize: "14px" },
+    feedbackCard: { background: C.cardBg, border: `1px solid ${C.cardBorder}`, borderLeft: "4px solid #fb923c", borderRadius: "14px", padding: "20px", marginBottom: "16px" },
+    fbTop:        { display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "14px" },
+    fbAuthor:     { display: "flex", gap: "12px", alignItems: "center" },
+    fbAvatar:     { width: "40px", height: "40px", borderRadius: "50%", background: "rgba(251,146,60,0.15)", color: "#fb923c", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: "16px" },
+    fbName:       { fontSize: "15px", fontWeight: 700, color: C.text, marginBottom: "4px" },
+    fbText:       { fontSize: "15px", color: C.sub, lineHeight: 1.7, marginBottom: "10px" },
+    fbTime:       { fontSize: "12px", color: C.dim },
+    deleteBtn:    { background: "transparent", border: "none", color: C.dim, cursor: "pointer", fontSize: "16px" },
+  };
 
   return (
     <DashboardLayout>
@@ -114,7 +144,7 @@ export default function FeedbackPage() {
                   <label id="rating-label">Rating</label>
                   <div style={{ marginTop: "8px" }}>
                     <StarRating value={form.rating} onChange={(v) => setForm({ ...form, rating: v })} />
-                    <p style={{ color: "#9ca3af", fontSize: "13px", marginTop: "8px" }}>
+                    <p style={{ color: C.sub, fontSize: "13px", marginTop: "8px" }}>
                       {["", "Poor", "Fair", "Good", "Very Good", "Excellent"][form.rating]}
                       {" "}— use arrow keys to change
                     </p>
@@ -181,21 +211,3 @@ export default function FeedbackPage() {
   );
 }
 
-const s = {
-  grid: { display: "grid", gridTemplateColumns: "380px 1fr", gap: "24px", alignItems: "start" },
-  panelTitle: { fontSize: "16px", fontWeight: 700, color: "#f9fafb", marginBottom: "20px" },
-  submitBtn: { width: "100%", background: "#fb923c", color: "#000", border: "none", padding: "14px", borderRadius: "10px", fontWeight: 700, fontSize: "16px", cursor: "pointer", fontFamily: "Inter,Arial,sans-serif" },
-  statRow: { display: "flex", gap: "16px" },
-  statBox: { flex: 1, textAlign: "center", padding: "16px", background: "#0a0f1e", borderRadius: "12px" },
-  statNum: { fontSize: "32px", fontWeight: 900, color: "#f9fafb", marginBottom: "4px" },
-  statLabel: { fontSize: "12px", color: "#6b7280", fontWeight: 600 },
-  countBadge: { background: "rgba(251,146,60,0.15)", color: "#fb923c", padding: "2px 10px", borderRadius: "12px", fontSize: "14px" },
-  feedbackCard: { background: "#111827", border: "1px solid #1f2937", borderLeft: "4px solid #fb923c", borderRadius: "14px", padding: "20px", marginBottom: "16px" },
-  fbTop: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "14px" },
-  fbAuthor: { display: "flex", gap: "12px", alignItems: "center" },
-  fbAvatar: { width: "40px", height: "40px", borderRadius: "50%", background: "rgba(251,146,60,0.15)", color: "#fb923c", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: "16px" },
-  fbName: { fontSize: "15px", fontWeight: 700, color: "#f9fafb", marginBottom: "4px" },
-  fbText: { fontSize: "15px", color: "#9ca3af", lineHeight: 1.7, marginBottom: "10px" },
-  fbTime: { fontSize: "12px", color: "#4b5563" },
-  deleteBtn: { background: "transparent", border: "none", color: "#6b7280", cursor: "pointer", fontSize: "16px" },
-};

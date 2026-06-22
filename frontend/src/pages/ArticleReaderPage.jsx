@@ -5,6 +5,18 @@ import API from "../api";
 
 export default function ArticleReaderPage() {
   const { speak, settings } = useAccessibility();
+  const isDark = settings.theme === "dark";
+  const C = {
+    text:        isDark ? "#f9fafb"              : "#0f172a",
+    sub:         isDark ? "#9ca3af"              : "#64748b",
+    dim:         isDark ? "#6b7280"              : "#94a3b8",
+    cardBg:      isDark ? "#111827"              : "#ffffff",
+    cardBorder:  isDark ? "#1f2937"              : "rgba(0,0,0,0.09)",
+    inputBg:     isDark ? "#111827"              : "rgba(0,0,0,0.04)",
+    inputBorder: isDark ? "#374151"              : "rgba(0,0,0,0.14)",
+    darkBg:      isDark ? "#0a0f1e"              : "rgba(0,0,0,0.04)",
+    cancelBg:    isDark ? "#374151"              : "rgba(0,0,0,0.08)",
+  };
   const [articles, setArticles] = useState([]);
   const [form, setForm] = useState({ title: "", content: "" });
   const [loading, setLoading] = useState(true);
@@ -75,6 +87,32 @@ export default function ArticleReaderPage() {
     a.title.toLowerCase().includes(search.toLowerCase()) ||
     a.content.toLowerCase().includes(search.toLowerCase())
   );
+
+  const s = {
+    grid:          { display: "grid", gridTemplateColumns: "360px 1fr", gap: "24px", alignItems: "start" },
+    formPanel:     {},
+    panelTitle:    { fontSize: "16px", fontWeight: 700, color: C.text, marginBottom: "20px" },
+    charCount:     { fontSize: "12px", color: C.dim, textAlign: "right", marginTop: "-8px", marginBottom: "8px" },
+    addBtn:        { width: "100%", background: "#22c55e", color: "#000", border: "none", padding: "14px", borderRadius: "10px", fontWeight: 700, fontSize: "16px", cursor: "pointer", fontFamily: "Inter,Arial,sans-serif" },
+    readAllBtn:    { width: "100%", background: "rgba(96,165,250,0.1)", border: "2px solid #60a5fa", color: "#60a5fa", padding: "14px", borderRadius: "10px", fontWeight: 700, fontSize: "15px", cursor: "pointer", fontFamily: "Inter,Arial,sans-serif", marginBottom: "10px" },
+    stopBtn:       { width: "100%", background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)", color: "#f87171", padding: "12px", borderRadius: "10px", cursor: "pointer", fontSize: "14px", fontWeight: 600, fontFamily: "Inter,Arial,sans-serif" },
+    listHeader:    { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", gap: "16px" },
+    countBadge:    { background: "rgba(96,165,250,0.15)", color: "#60a5fa", padding: "2px 10px", borderRadius: "12px", fontSize: "14px" },
+    searchInput:   { padding: "10px 16px", background: C.inputBg, border: `1px solid ${C.inputBorder}`, borderRadius: "10px", color: C.text, fontSize: "14px", width: "200px", fontFamily: "Inter,Arial,sans-serif", outline: "none" },
+    articleCard:   { background: C.cardBg, border: `1px solid ${C.cardBorder}`, borderRadius: "14px", padding: "20px", marginBottom: "16px", borderLeft: "4px solid #60a5fa" },
+    articleHeader: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "16px", marginBottom: "12px" },
+    articleTitle:  { fontSize: "18px", fontWeight: 700, color: C.text, marginBottom: "4px" },
+    wordCount:     { fontSize: "12px", color: C.dim, background: C.darkBg, padding: "2px 10px", borderRadius: "10px" },
+    articleActions:{ display: "flex", gap: "8px", flexShrink: 0, alignItems: "center", flexWrap: "wrap" },
+    actionBtn:     { background: "rgba(250,204,21,0.08)", border: "1px solid rgba(250,204,21,0.2)", color: "#facc15", padding: "8px 14px", borderRadius: "8px", cursor: "pointer", fontSize: "13px", fontWeight: 600, fontFamily: "Inter,Arial,sans-serif", whiteSpace: "nowrap" },
+    stopBtnSmall:  { background: "rgba(239,68,68,0.1)", border: "none", color: "#f87171", padding: "8px 12px", borderRadius: "8px", cursor: "pointer", fontSize: "14px", fontFamily: "Inter,Arial,sans-serif" },
+    expandBtn:     { background: C.darkBg, border: `1px solid ${C.inputBorder}`, color: C.sub, padding: "8px 12px", borderRadius: "8px", cursor: "pointer", fontSize: "13px", fontFamily: "Inter,Arial,sans-serif" },
+    deleteBtn:     { background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)", color: "#f87171", padding: "8px 12px", borderRadius: "8px", cursor: "pointer", fontSize: "14px", fontFamily: "Inter,Arial,sans-serif" },
+    confirmRow:    { display: "flex", alignItems: "center", gap: "6px" },
+    confirmYes:    { background: "#ef4444", color: "#fff", border: "none", padding: "6px 12px", borderRadius: "6px", cursor: "pointer", fontWeight: 700, fontSize: "12px", fontFamily: "Inter,Arial,sans-serif" },
+    confirmNo:     { background: C.cancelBg, color: C.text, border: "none", padding: "6px 12px", borderRadius: "6px", cursor: "pointer", fontWeight: 700, fontSize: "12px", fontFamily: "Inter,Arial,sans-serif" },
+    articlePreview:{ fontSize: "15px", color: C.sub, lineHeight: 1.7, whiteSpace: "pre-wrap" },
+  };
 
   return (
     <DashboardLayout>
@@ -178,28 +216,3 @@ export default function ArticleReaderPage() {
   );
 }
 
-const s = {
-  grid: { display: "grid", gridTemplateColumns: "360px 1fr", gap: "24px", alignItems: "start" },
-  formPanel: {},
-  panelTitle: { fontSize: "16px", fontWeight: 700, color: "#f9fafb", marginBottom: "20px" },
-  charCount: { fontSize: "12px", color: "#6b7280", textAlign: "right", marginTop: "-8px", marginBottom: "8px" },
-  addBtn: { width: "100%", background: "#22c55e", color: "#000", border: "none", padding: "14px", borderRadius: "10px", fontWeight: 700, fontSize: "16px", cursor: "pointer", fontFamily: "Inter,Arial,sans-serif" },
-  readAllBtn: { width: "100%", background: "rgba(96,165,250,0.1)", border: "2px solid #60a5fa", color: "#60a5fa", padding: "14px", borderRadius: "10px", fontWeight: 700, fontSize: "15px", cursor: "pointer", fontFamily: "Inter,Arial,sans-serif", marginBottom: "10px" },
-  stopBtn: { width: "100%", background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)", color: "#f87171", padding: "12px", borderRadius: "10px", cursor: "pointer", fontSize: "14px", fontWeight: 600, fontFamily: "Inter,Arial,sans-serif" },
-  listHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", gap: "16px" },
-  countBadge: { background: "rgba(96,165,250,0.15)", color: "#60a5fa", padding: "2px 10px", borderRadius: "12px", fontSize: "14px" },
-  searchInput: { padding: "10px 16px", background: "#111827", border: "1px solid #374151", borderRadius: "10px", color: "#f9fafb", fontSize: "14px", width: "200px", fontFamily: "Inter,Arial,sans-serif", outline: "none" },
-  articleCard: { background: "#111827", border: "1px solid #1f2937", borderRadius: "14px", padding: "20px", marginBottom: "16px", borderLeft: "4px solid #60a5fa" },
-  articleHeader: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "16px", marginBottom: "12px" },
-  articleTitle: { fontSize: "18px", fontWeight: 700, color: "#f9fafb", marginBottom: "4px" },
-  wordCount: { fontSize: "12px", color: "#6b7280", background: "#1a2235", padding: "2px 10px", borderRadius: "10px" },
-  articleActions: { display: "flex", gap: "8px", flexShrink: 0, alignItems: "center", flexWrap: "wrap" },
-  actionBtn: { background: "rgba(250,204,21,0.08)", border: "1px solid rgba(250,204,21,0.2)", color: "#facc15", padding: "8px 14px", borderRadius: "8px", cursor: "pointer", fontSize: "13px", fontWeight: 600, fontFamily: "Inter,Arial,sans-serif", whiteSpace: "nowrap" },
-  stopBtnSmall: { background: "rgba(239,68,68,0.1)", border: "none", color: "#f87171", padding: "8px 12px", borderRadius: "8px", cursor: "pointer", fontSize: "14px", fontFamily: "Inter,Arial,sans-serif" },
-  expandBtn: { background: "#1a2235", border: "1px solid #374151", color: "#9ca3af", padding: "8px 12px", borderRadius: "8px", cursor: "pointer", fontSize: "13px", fontFamily: "Inter,Arial,sans-serif" },
-  deleteBtn: { background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)", color: "#f87171", padding: "8px 12px", borderRadius: "8px", cursor: "pointer", fontSize: "14px", fontFamily: "Inter,Arial,sans-serif" },
-  confirmRow: { display: "flex", alignItems: "center", gap: "6px" },
-  confirmYes: { background: "#ef4444", color: "#fff", border: "none", padding: "6px 12px", borderRadius: "6px", cursor: "pointer", fontWeight: 700, fontSize: "12px", fontFamily: "Inter,Arial,sans-serif" },
-  confirmNo: { background: "#374151", color: "#f9fafb", border: "none", padding: "6px 12px", borderRadius: "6px", cursor: "pointer", fontWeight: 700, fontSize: "12px", fontFamily: "Inter,Arial,sans-serif" },
-  articlePreview: { fontSize: "15px", color: "#9ca3af", lineHeight: 1.7, whiteSpace: "pre-wrap" },
-};

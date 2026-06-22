@@ -4,7 +4,19 @@ import { useAccessibility } from "../context/AccessibilityContext";
 import API from "../api";
 
 export default function SavedLocationsPage() {
-  const { speak } = useAccessibility();
+  const { speak, settings } = useAccessibility();
+  const isDark = settings.theme === "dark";
+  const C = {
+    text:        isDark ? "#f9fafb"              : "#0f172a",
+    sub:         isDark ? "#9ca3af"              : "#64748b",
+    dim:         isDark ? "#6b7280"              : "#94a3b8",
+    cardBg:      isDark ? "#111827"              : "#ffffff",
+    cardBorder:  isDark ? "#1f2937"              : "rgba(0,0,0,0.09)",
+    inputBg:     isDark ? "#111827"              : "rgba(0,0,0,0.04)",
+    inputBorder: isDark ? "#374151"              : "rgba(0,0,0,0.14)",
+    darkBg:      isDark ? "#0a0f1e"              : "rgba(0,0,0,0.04)",
+    cancelBg:    isDark ? "#374151"              : "rgba(0,0,0,0.08)",
+  };
   const [locations, setLocations] = useState([]);
   const [form, setForm] = useState({ place_name: "", address: "" });
   const [loading, setLoading] = useState(true);
@@ -79,6 +91,30 @@ export default function SavedLocationsPage() {
     { name: "School", icon: "🏫" },
   ];
 
+  const s = {
+    grid:       { display: "grid", gridTemplateColumns: "360px 1fr", gap: "24px", alignItems: "start" },
+    panelTitle: { fontSize: "16px", fontWeight: 700, color: C.text, marginBottom: "20px" },
+    addBtn:     { width: "100%", background: "#34d399", color: "#000", border: "none", padding: "14px", borderRadius: "10px", fontWeight: 700, fontSize: "16px", cursor: "pointer", fontFamily: "Inter,Arial,sans-serif" },
+    presetsGrid:{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" },
+    presetBtn:  { display: "flex", flexDirection: "column", alignItems: "center", gap: "6px", background: C.darkBg, border: `1px solid ${C.inputBorder}`, color: C.text, padding: "16px 8px", borderRadius: "10px", cursor: "pointer", fontSize: "13px", fontWeight: 600, fontFamily: "Inter,Arial,sans-serif" },
+    voiceBtn:   { width: "100%", background: "rgba(52,211,153,0.1)", border: "2px solid #34d399", color: "#34d399", padding: "14px", borderRadius: "10px", fontWeight: 700, fontSize: "15px", cursor: "pointer", fontFamily: "Inter,Arial,sans-serif" },
+    listHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", gap: "16px" },
+    countBadge: { background: "rgba(52,211,153,0.15)", color: "#34d399", padding: "2px 10px", borderRadius: "12px", fontSize: "14px" },
+    searchInput:{ padding: "10px 16px", background: C.inputBg, border: `1px solid ${C.inputBorder}`, borderRadius: "10px", color: C.text, fontSize: "14px", width: "180px", fontFamily: "Inter,Arial,sans-serif", outline: "none" },
+    locCard:    { background: C.cardBg, border: `1px solid ${C.cardBorder}`, borderLeft: "4px solid #34d399", borderRadius: "14px", padding: "18px 20px", marginBottom: "14px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "16px", flexWrap: "wrap" },
+    locLeft:    { display: "flex", gap: "14px", alignItems: "center" },
+    locIcon:    { fontSize: "28px" },
+    locName:    { fontSize: "16px", fontWeight: 700, color: C.text, marginBottom: "4px" },
+    locAddress: { fontSize: "13px", color: C.sub },
+    locActions: { display: "flex", gap: "8px", flexShrink: 0, alignItems: "center" },
+    mapBtn:     { background: "rgba(52,211,153,0.1)", border: "1px solid rgba(52,211,153,0.2)", color: "#34d399", padding: "10px 16px", borderRadius: "8px", cursor: "pointer", fontSize: "13px", fontWeight: 600, fontFamily: "Inter,Arial,sans-serif" },
+    speakBtn:   { background: "rgba(250,204,21,0.1)", border: "1px solid rgba(250,204,21,0.2)", color: "#facc15", padding: "10px 12px", borderRadius: "8px", cursor: "pointer", fontSize: "14px", fontFamily: "Inter,Arial,sans-serif" },
+    deleteBtn:  { background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)", color: "#f87171", padding: "10px 12px", borderRadius: "8px", cursor: "pointer", fontSize: "14px", fontFamily: "Inter,Arial,sans-serif" },
+    confirmRow: { display: "flex", alignItems: "center", gap: "6px" },
+    confirmYes: { background: "#ef4444", color: "#fff", border: "none", padding: "7px 12px", borderRadius: "6px", cursor: "pointer", fontWeight: 700, fontSize: "12px", fontFamily: "Inter,Arial,sans-serif" },
+    confirmNo:  { background: C.cancelBg, color: C.text, border: "none", padding: "7px 12px", borderRadius: "6px", cursor: "pointer", fontWeight: 700, fontSize: "12px", fontFamily: "Inter,Arial,sans-serif" },
+  };
+
   return (
     <DashboardLayout>
       <div className="fade-in">
@@ -117,7 +153,7 @@ export default function SavedLocationsPage() {
 
             <div className="card" style={{ marginBottom: "20px" }}>
               <h3 style={s.panelTitle}>Quick Add</h3>
-              <p style={{ color: "#6b7280", fontSize: "13px", marginBottom: "12px" }}>
+              <p style={{ color: C.sub, fontSize: "13px", marginBottom: "12px" }}>
                 Tap to pre-fill the form — add your real address before saving.
               </p>
               <div style={s.presetsGrid}>
@@ -181,26 +217,3 @@ export default function SavedLocationsPage() {
   );
 }
 
-const s = {
-  grid: { display: "grid", gridTemplateColumns: "360px 1fr", gap: "24px", alignItems: "start" },
-  panelTitle: { fontSize: "16px", fontWeight: 700, color: "#f9fafb", marginBottom: "20px" },
-  addBtn: { width: "100%", background: "#34d399", color: "#000", border: "none", padding: "14px", borderRadius: "10px", fontWeight: 700, fontSize: "16px", cursor: "pointer", fontFamily: "Inter,Arial,sans-serif" },
-  presetsGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" },
-  presetBtn: { display: "flex", flexDirection: "column", alignItems: "center", gap: "6px", background: "#0a0f1e", border: "1px solid #374151", color: "#d1d5db", padding: "16px 8px", borderRadius: "10px", cursor: "pointer", fontSize: "13px", fontWeight: 600, fontFamily: "Inter,Arial,sans-serif" },
-  voiceBtn: { width: "100%", background: "rgba(52,211,153,0.1)", border: "2px solid #34d399", color: "#34d399", padding: "14px", borderRadius: "10px", fontWeight: 700, fontSize: "15px", cursor: "pointer", fontFamily: "Inter,Arial,sans-serif" },
-  listHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", gap: "16px" },
-  countBadge: { background: "rgba(52,211,153,0.15)", color: "#34d399", padding: "2px 10px", borderRadius: "12px", fontSize: "14px" },
-  searchInput: { padding: "10px 16px", background: "#111827", border: "1px solid #374151", borderRadius: "10px", color: "#f9fafb", fontSize: "14px", width: "180px", fontFamily: "Inter,Arial,sans-serif", outline: "none" },
-  locCard: { background: "#111827", border: "1px solid #1f2937", borderLeft: "4px solid #34d399", borderRadius: "14px", padding: "18px 20px", marginBottom: "14px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "16px", flexWrap: "wrap" },
-  locLeft: { display: "flex", gap: "14px", alignItems: "center" },
-  locIcon: { fontSize: "28px" },
-  locName: { fontSize: "16px", fontWeight: 700, color: "#f9fafb", marginBottom: "4px" },
-  locAddress: { fontSize: "13px", color: "#9ca3af" },
-  locActions: { display: "flex", gap: "8px", flexShrink: 0, alignItems: "center" },
-  mapBtn: { background: "rgba(52,211,153,0.1)", border: "1px solid rgba(52,211,153,0.2)", color: "#34d399", padding: "10px 16px", borderRadius: "8px", cursor: "pointer", fontSize: "13px", fontWeight: 600, fontFamily: "Inter,Arial,sans-serif" },
-  speakBtn: { background: "rgba(250,204,21,0.1)", border: "1px solid rgba(250,204,21,0.2)", color: "#facc15", padding: "10px 12px", borderRadius: "8px", cursor: "pointer", fontSize: "14px", fontFamily: "Inter,Arial,sans-serif" },
-  deleteBtn: { background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)", color: "#f87171", padding: "10px 12px", borderRadius: "8px", cursor: "pointer", fontSize: "14px", fontFamily: "Inter,Arial,sans-serif" },
-  confirmRow: { display: "flex", alignItems: "center", gap: "6px" },
-  confirmYes: { background: "#ef4444", color: "#fff", border: "none", padding: "7px 12px", borderRadius: "6px", cursor: "pointer", fontWeight: 700, fontSize: "12px", fontFamily: "Inter,Arial,sans-serif" },
-  confirmNo: { background: "#374151", color: "#f9fafb", border: "none", padding: "7px 12px", borderRadius: "6px", cursor: "pointer", fontWeight: 700, fontSize: "12px", fontFamily: "Inter,Arial,sans-serif" },
-};
