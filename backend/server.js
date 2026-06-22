@@ -119,10 +119,19 @@ app.use("/api/sos", rateLimit({
 }));
 app.use("/api/sos", require("./routes/sosRoutes"));
 
+/* ── Rate limit for Groq endpoints: 20 calls / 15 min per IP ── */
+const groqLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: "Too many AI requests. Please wait a moment before trying again." },
+});
+
 /* ── Image analysis via Groq LLaMA Vision API ── */
 const imageUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 
-app.post("/api/analyze-image", imageUpload.single("image"), async (req, res) => {
+app.post("/api/analyze-image", groqLimiter, imageUpload.single("image"), async (req, res) => {
   try {
     const GROQ_KEY = process.env.GROQ_API_KEY;
     if (!GROQ_KEY) return res.status(500).json({ error: "GROQ_API_KEY not configured" });
@@ -170,7 +179,7 @@ app.post("/api/analyze-image", imageUpload.single("image"), async (req, res) => 
 /* ── Transcription via Groq Whisper API ── */
 const audioUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
 
-app.post("/api/transcribe", audioUpload.single("audio"), async (req, res) => {
+app.post("/api/transcribe", groqLimiter, audioUpload.single("audio"), async (req, res) => {
   try {
     const GROQ_KEY = process.env.GROQ_API_KEY;
     if (!GROQ_KEY) return res.status(500).json({ error: "GROQ_API_KEY not set in backend .env" });

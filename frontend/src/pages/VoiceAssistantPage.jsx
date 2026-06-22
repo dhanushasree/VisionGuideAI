@@ -4,14 +4,6 @@ import DashboardLayout from "../components/DashboardLayout";
 import { useAccessibility } from "../context/AccessibilityContext";
 import API from "../api";
 
-function tts(text) {
-  if (!text) return null;
-  window.speechSynthesis.cancel();
-  const u = new SpeechSynthesisUtterance(text);
-  u.lang = "en-IN"; u.rate = 0.9; u.volume = 1;
-  setTimeout(() => window.speechSynthesis.speak(u), 80);
-  return u;
-}
 
 const TYPE_COLOR = {
   greeting:"#22c55e", contacts:"#60a5fa", locations:"#34d399",
@@ -39,6 +31,16 @@ const QUICK = [
 export default function VoiceAssistantPage() {
   const { settings } = useAccessibility();
   const navigate     = useNavigate();
+
+  const tts = (text) => {
+    if (!text) return null;
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = settings.language; u.rate = settings.voiceSpeed ?? 0.9; u.volume = 1;
+    setTimeout(() => window.speechSynthesis.speak(u), 80);
+    return u;
+  };
+
   const isDark       = settings.theme === "dark";
 
   const [phase,      setPhase]      = useState("idle"); // idle|recording|processing|speaking
@@ -119,7 +121,7 @@ export default function VoiceAssistantPage() {
     if (!aliveRef.current || phaseRef.current !== "recording") return;
 
     const rec = new SR();
-    rec.lang            = "en-IN";   // Indian English — works for most Indian accents
+    rec.lang            = settings.language;
     rec.continuous      = true;      // keep listening until command received or STOP clicked
     rec.interimResults  = true;      // show live partial text while speaking
     rec.maxAlternatives = 1;

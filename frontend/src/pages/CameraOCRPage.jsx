@@ -20,6 +20,18 @@ function cleanOCRText(raw) {
 
 export default function CameraOCRPage() {
   const { settings, speak: ctxSpeak } = useAccessibility();
+  const isDark = settings.theme === "dark";
+  const C = {
+    text:       isDark ? "#f9fafb"               : "#0f172a",
+    sub:        isDark ? "#9ca3af"               : "#64748b",
+    dim:        isDark ? "#6b7280"               : "#94a3b8",
+    border:     isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.12)",
+    inputBg:    isDark ? "rgba(255,255,255,0.04)": "rgba(0,0,0,0.04)",
+    itemBg:     isDark ? "rgba(255,255,255,0.03)": "rgba(0,0,0,0.03)",
+    progressBg: isDark ? "rgba(255,255,255,0.06)": "rgba(0,0,0,0.08)",
+    histBorder: isDark ? "rgba(255,255,255,0.05)": "rgba(0,0,0,0.08)",
+    previewBg:  isDark ? "#0d1117"               : "#f8fafc",
+  };
   const videoRef   = useRef(null);
   const canvasRef  = useRef(null);
   const streamRef  = useRef(null);
@@ -187,6 +199,43 @@ export default function CameraOCRPage() {
     { icon: "📰", text: "Newspaper / book" },
   ];
 
+  const s = {
+    modeRow:           { display: "flex", gap: "10px", marginBottom: "16px" },
+    modeBtn:           { flex: 1, padding: "11px", border: `1px solid ${C.border}`, borderRadius: "10px", background: C.inputBg, color: C.sub, cursor: "pointer", fontWeight: 600, fontSize: "14px", fontFamily: "inherit", transition: "all 0.2s" },
+    modeBtnActive:     { background: "rgba(244,114,182,0.1)", borderColor: "rgba(244,114,182,0.3)", color: "#f472b6" },
+    cameraBox:         { position: "relative", borderRadius: "16px", overflow: "hidden", background: "#0d1117", border: "1px solid rgba(255,255,255,0.08)", aspectRatio: "4/3", marginBottom: "16px", minHeight: "220px" },
+    video:             { width: "100%", height: "100%", objectFit: "cover", display: "block" },
+    scanOverlay:       { position: "absolute", inset: 0, pointerEvents: "none" },
+    scanCornerTL:      { position: "absolute", top: "8%", left: "8%", width: "30px", height: "30px", borderTop: "3px solid #22c55e", borderLeft: "3px solid #22c55e", borderRadius: "4px 0 0 0" },
+    scanCornerTR:      { position: "absolute", top: "8%", right: "8%", width: "30px", height: "30px", borderTop: "3px solid #22c55e", borderRight: "3px solid #22c55e", borderRadius: "0 4px 0 0" },
+    scanCornerBL:      { position: "absolute", bottom: "8%", left: "8%", width: "30px", height: "30px", borderBottom: "3px solid #22c55e", borderLeft: "3px solid #22c55e", borderRadius: "0 0 0 4px" },
+    scanCornerBR:      { position: "absolute", bottom: "8%", right: "8%", width: "30px", height: "30px", borderBottom: "3px solid #22c55e", borderRight: "3px solid #22c55e", borderRadius: "0 0 4px 0" },
+    scanLine:          { position: "absolute", left: "8%", right: "8%", height: "2px", background: "linear-gradient(90deg,transparent,#22c55e,transparent)", animation: "scan 2s ease-in-out infinite alternate", boxShadow: "0 0 8px #22c55e" },
+    camHint:           { position: "absolute", bottom: "12px", left: 0, right: 0, textAlign: "center", color: "#22c55e", fontSize: "13px", fontWeight: 600, textShadow: "0 2px 8px rgba(0,0,0,0.8)" },
+    cameraPlaceholder: { display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", minHeight: "220px", padding: "40px", textAlign: "center" },
+    camIcon:           { fontSize: "56px", marginBottom: "16px" },
+    previewBox:        { marginBottom: "16px", borderRadius: "16px", overflow: "hidden", border: `1px solid ${C.border}`, background: C.previewBg },
+    previewImg:        { width: "100%", display: "block", maxHeight: "380px", objectFit: "contain" },
+    changeBtn:         { display: "block", textAlign: "center", padding: "10px", cursor: "pointer", color: C.sub, fontSize: "13px", background: C.inputBg, transition: "background 0.2s" },
+    uploadBox:         { borderRadius: "16px", border: `2px dashed ${C.border}`, marginBottom: "16px", overflow: "hidden" },
+    uploadLabel:       { display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "48px 24px", cursor: "pointer", textAlign: "center" },
+    controls:          { display: "flex", flexDirection: "column", gap: "10px", marginBottom: "16px" },
+    progressWrap:      { background: C.progressBg, borderRadius: "8px", overflow: "hidden", height: "28px", position: "relative", marginBottom: "16px" },
+    progressBar:       { height: "100%", background: "linear-gradient(90deg,#16a34a,#22c55e,#4ade80)", transition: "width 0.3s ease", borderRadius: "8px" },
+    progressText:      { position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "12px", fontWeight: 700, color: "#fff" },
+    resultBox:         { background: "rgba(34,197,94,0.06)", border: "1px solid rgba(34,197,94,0.2)", borderRadius: "14px", padding: "20px" },
+    resultHeader:      { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px", flexWrap: "wrap", gap: "10px" },
+    resultTitle:       { fontSize: "16px", fontWeight: 700, color: C.text },
+    resultText:        { color: C.text, fontSize: "15px", lineHeight: 1.8, whiteSpace: "pre-wrap", fontFamily: "Georgia, serif" },
+    sideTitle:         { fontSize: "13px", fontWeight: 700, color: C.sub, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "16px" },
+    useCaseGrid:       { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" },
+    useCaseItem:       { display: "flex", alignItems: "center", gap: "10px", padding: "10px", background: C.itemBg, borderRadius: "8px" },
+    tipItem:           { display: "flex", alignItems: "flex-start", gap: "10px", marginBottom: "10px" },
+    tipNum:            { width: "20px", height: "20px", borderRadius: "50%", background: "rgba(244,114,182,0.15)", color: "#f472b6", fontSize: "11px", fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: "1px" },
+    histItem:          { padding: "14px 0", borderBottom: `1px solid ${C.histBorder}` },
+    rereadBtn:         { background: "transparent", border: "1px solid rgba(250,204,21,0.2)", color: "#facc15", padding: "5px 12px", borderRadius: "6px", cursor: "pointer", fontSize: "12px", fontFamily: "inherit", marginTop: "8px" },
+  };
+
   return (
     <DashboardLayout>
       <div className="fade-in">
@@ -249,8 +298,8 @@ export default function CameraOCRPage() {
                     ) : (
                       <>
                         <div style={s.camIcon}>📷</div>
-                        <p style={{ color: "#9ca3af", marginBottom: "6px", fontWeight: 600 }}>Camera not started</p>
-                        <p style={{ color: "#6b7280", fontSize: "13px" }}>Tap "Start Camera" to begin</p>
+                        <p style={{ color: C.sub, marginBottom: "6px", fontWeight: 600 }}>Camera not started</p>
+                        <p style={{ color: C.dim, fontSize: "13px" }}>Tap "Start Camera" to begin</p>
                       </>
                     )}
                   </div>
@@ -276,10 +325,10 @@ export default function CameraOCRPage() {
                       style={{ display: "none" }} onChange={handleUpload} />
                     <label htmlFor="img-upload" style={s.uploadLabel}>
                       <span style={{ fontSize: "48px", display: "block", marginBottom: "16px" }}>🖼️</span>
-                      <span style={{ fontSize: "17px", fontWeight: 700, color: "#f9fafb", display: "block", marginBottom: "8px" }}>
+                      <span style={{ fontSize: "17px", fontWeight: 700, color: C.text, display: "block", marginBottom: "8px" }}>
                         Tap to upload an image
                       </span>
-                      <span style={{ fontSize: "13px", color: "#6b7280" }}>
+                      <span style={{ fontSize: "13px", color: C.dim }}>
                         JPG, PNG, HEIC — any image with text
                       </span>
                     </label>
@@ -368,7 +417,7 @@ export default function CameraOCRPage() {
                 {useCases.map(u => (
                   <div key={u.text} style={s.useCaseItem}>
                     <span style={{ fontSize: "22px" }}>{u.icon}</span>
-                    <span style={{ color: "#d1d5db", fontSize: "13px" }}>{u.text}</span>
+                    <span style={{ color: C.text, fontSize: "13px" }}>{u.text}</span>
                   </div>
                 ))}
               </div>
@@ -385,7 +434,7 @@ export default function CameraOCRPage() {
               ].map((tip, i) => (
                 <div key={i} style={s.tipItem}>
                   <span style={s.tipNum}>{i + 1}</span>
-                  <span style={{ color: "#9ca3af", fontSize: "14px" }}>{tip}</span>
+                  <span style={{ color: C.sub, fontSize: "14px" }}>{tip}</span>
                 </div>
               ))}
             </div>
@@ -396,10 +445,10 @@ export default function CameraOCRPage() {
                 {history.map((h, i) => (
                   <div key={i} style={s.histItem}>
                     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
-                      <span style={{ color: "#6b7280", fontSize: "11px" }}>Scan {history.length - i}</span>
-                      <span style={{ color: "#4b5563", fontSize: "11px" }}>{h.time}</span>
+                      <span style={{ color: C.dim, fontSize: "11px" }}>Scan {history.length - i}</span>
+                      <span style={{ color: C.dim, fontSize: "11px" }}>{h.time}</span>
                     </div>
-                    <p style={{ color: "#9ca3af", fontSize: "13px", lineHeight: 1.5 }}>
+                    <p style={{ color: C.sub, fontSize: "13px", lineHeight: 1.5 }}>
                       {h.text.length > 120 ? h.text.slice(0, 120) + "…" : h.text}
                     </p>
                     <button style={s.rereadBtn} onClick={() => { setScannedText(h.text); speak(h.text); }}>
@@ -417,39 +466,3 @@ export default function CameraOCRPage() {
   );
 }
 
-const s = {
-  modeRow:       { display: "flex", gap: "10px", marginBottom: "16px" },
-  modeBtn:       { flex: 1, padding: "11px", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "10px", background: "rgba(255,255,255,0.04)", color: "#9ca3af", cursor: "pointer", fontWeight: 600, fontSize: "14px", fontFamily: "inherit", transition: "all 0.2s" },
-  modeBtnActive: { background: "rgba(244,114,182,0.1)", borderColor: "rgba(244,114,182,0.3)", color: "#f472b6" },
-  cameraBox:     { position: "relative", borderRadius: "16px", overflow: "hidden", background: "#0d1117", border: "1px solid rgba(255,255,255,0.08)", aspectRatio: "4/3", marginBottom: "16px", minHeight: "220px" },
-  video:         { width: "100%", height: "100%", objectFit: "cover", display: "block" },
-  scanOverlay:   { position: "absolute", inset: 0, pointerEvents: "none" },
-  scanCornerTL:  { position: "absolute", top: "8%", left: "8%", width: "30px", height: "30px", borderTop: "3px solid #22c55e", borderLeft: "3px solid #22c55e", borderRadius: "4px 0 0 0" },
-  scanCornerTR:  { position: "absolute", top: "8%", right: "8%", width: "30px", height: "30px", borderTop: "3px solid #22c55e", borderRight: "3px solid #22c55e", borderRadius: "0 4px 0 0" },
-  scanCornerBL:  { position: "absolute", bottom: "8%", left: "8%", width: "30px", height: "30px", borderBottom: "3px solid #22c55e", borderLeft: "3px solid #22c55e", borderRadius: "0 0 0 4px" },
-  scanCornerBR:  { position: "absolute", bottom: "8%", right: "8%", width: "30px", height: "30px", borderBottom: "3px solid #22c55e", borderRight: "3px solid #22c55e", borderRadius: "0 0 4px 0" },
-  scanLine:      { position: "absolute", left: "8%", right: "8%", height: "2px", background: "linear-gradient(90deg,transparent,#22c55e,transparent)", animation: "scan 2s ease-in-out infinite alternate", boxShadow: "0 0 8px #22c55e" },
-  camHint:       { position: "absolute", bottom: "12px", left: 0, right: 0, textAlign: "center", color: "#22c55e", fontSize: "13px", fontWeight: 600, textShadow: "0 2px 8px rgba(0,0,0,0.8)" },
-  cameraPlaceholder: { display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", minHeight: "220px", padding: "40px", textAlign: "center" },
-  camIcon:       { fontSize: "56px", marginBottom: "16px" },
-  previewBox:    { marginBottom: "16px", borderRadius: "16px", overflow: "hidden", border: "1px solid rgba(255,255,255,0.1)", background: "#0d1117" },
-  previewImg:    { width: "100%", display: "block", maxHeight: "380px", objectFit: "contain" },
-  changeBtn:     { display: "block", textAlign: "center", padding: "10px", cursor: "pointer", color: "#9ca3af", fontSize: "13px", background: "rgba(255,255,255,0.04)", transition: "background 0.2s" },
-  uploadBox:     { borderRadius: "16px", border: "2px dashed rgba(255,255,255,0.12)", marginBottom: "16px", overflow: "hidden" },
-  uploadLabel:   { display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "48px 24px", cursor: "pointer", textAlign: "center" },
-  controls:      { display: "flex", flexDirection: "column", gap: "10px", marginBottom: "16px" },
-  progressWrap:  { background: "rgba(255,255,255,0.06)", borderRadius: "8px", overflow: "hidden", height: "28px", position: "relative", marginBottom: "16px" },
-  progressBar:   { height: "100%", background: "linear-gradient(90deg,#16a34a,#22c55e,#4ade80)", transition: "width 0.3s ease", borderRadius: "8px" },
-  progressText:  { position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "12px", fontWeight: 700, color: "#fff" },
-  resultBox:     { background: "rgba(34,197,94,0.06)", border: "1px solid rgba(34,197,94,0.2)", borderRadius: "14px", padding: "20px" },
-  resultHeader:  { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px", flexWrap: "wrap", gap: "10px" },
-  resultTitle:   { fontSize: "16px", fontWeight: 700, color: "#f9fafb" },
-  resultText:    { color: "#d1d5db", fontSize: "15px", lineHeight: 1.8, whiteSpace: "pre-wrap", fontFamily: "Georgia, serif" },
-  sideTitle:     { fontSize: "13px", fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "16px" },
-  useCaseGrid:   { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" },
-  useCaseItem:   { display: "flex", alignItems: "center", gap: "10px", padding: "10px", background: "rgba(255,255,255,0.03)", borderRadius: "8px" },
-  tipItem:       { display: "flex", alignItems: "flex-start", gap: "10px", marginBottom: "10px" },
-  tipNum:        { width: "20px", height: "20px", borderRadius: "50%", background: "rgba(244,114,182,0.15)", color: "#f472b6", fontSize: "11px", fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: "1px" },
-  histItem:      { padding: "14px 0", borderBottom: "1px solid rgba(255,255,255,0.05)" },
-  rereadBtn:     { background: "transparent", border: "1px solid rgba(250,204,21,0.2)", color: "#facc15", padding: "5px 12px", borderRadius: "6px", cursor: "pointer", fontSize: "12px", fontFamily: "inherit", marginTop: "8px" },
-};

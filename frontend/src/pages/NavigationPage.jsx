@@ -213,9 +213,11 @@ export default function NavigationPage() {
       : `["amenity"="${tag}"]`;
     const radius = isRailway ? 20000 : 10000; // train stations can be farther away
     const qStr   = `[out:json][timeout:20];(node${filter}(around:${radius},${lat},${lon});way${filter}(around:${radius},${lat},${lon});relation${filter}(around:${radius},${lat},${lon}););out center 15;`;
+    const overpassCtrl = new AbortController();
+    setTimeout(() => overpassCtrl.abort(), 20000);
     const res    = await fetch(
       `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(qStr)}`,
-      { signal: AbortSignal.timeout(20000) }
+      { signal: overpassCtrl.signal }
     );
     const json = await safeJson(res);
     if (!json.elements?.length)
@@ -342,7 +344,9 @@ export default function NavigationPage() {
       speak("Calculating route.");
       const osrmProfile = mode.osrm;
       const url = `https://router.project-osrm.org/route/v1/${osrmProfile}/${pos.lon},${pos.lat};${destCoords.lon},${destCoords.lat}?steps=true&overview=false&annotations=false&continue_straight=false&alternatives=false`;
-      const res  = await fetch(url, { signal: AbortSignal.timeout(20000) });
+      const osrmCtrl = new AbortController();
+      setTimeout(() => osrmCtrl.abort(), 20000);
+      const res  = await fetch(url, { signal: osrmCtrl.signal });
       const data = await safeJson(res);
 
       if (data.code !== "Ok" || !data.routes?.length) {
